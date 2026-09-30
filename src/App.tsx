@@ -4,6 +4,8 @@ import { VoiceModulatorPanel } from './ui/VoiceModulatorPanel'
 import { FaceSwapPanel } from './ui/FaceSwapPanel'
 import { FakeIdPanel } from './ui/FakeIdPanel'
 import type { ModuleId, ModuleInfo } from './modules/registry'
+import { HeistAIPanel } from './ui/HeistAIPanel'
+import { AlibiPanel } from './ui/AlibiPanel'
 
 export default function App() {
   const [open, setOpen] = useState(false)
@@ -44,6 +46,8 @@ export default function App() {
         <p>{open ? 'Pick a tool from the case.' : 'Click the case to open it. Drag to look around.'}</p>
       </div>
 
+      {active === 'heistai' && <HeistAIPanel onClose={() => setActive(null)} />}
+      {active === 'alibi' && <AlibiPanel onClose={() => setActive(null)} />}
       {toast && <div className="toast">{toast}</div>}
 
       {active === 'voice' && <VoiceModulatorPanel onClose={() => setActive(null)} />}
