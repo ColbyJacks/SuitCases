@@ -10,6 +10,8 @@ Design notes:
 - UI transitions use Motion springs and shared-layout highlights (the dock pill, preset cards, style and role chips). The dock and module panels follow kokonut UI patterns (Toolbar, AI Voice, AI Input, Shimmer Text). Every module panel shares one glass frame and set of controls (`src/ui/PanelShell.tsx`).
 - In 3D, the lid, latches, combination dials and modules run on small damped springs (`src/lib/spring.ts`), and the camera glides between shots with drei `CameraControls`.
 
+Presenting the project? [docs/LEARNING_GUIDE.md](docs/LEARNING_GUIDE.md) explains every tool and technique used here, with videos and docs to learn from.
+
 ## Run it
 
 Requires Node 20+.
