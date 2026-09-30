@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Scene } from './scene/Scene'
 import { VoiceModulatorPanel } from './ui/VoiceModulatorPanel'
+import { FaceSwapPanel } from './ui/FaceSwapPanel'
 import { FakeIdPanel } from './ui/FakeIdPanel'
 import type { ModuleId, ModuleInfo } from './modules/registry'
 import { HeistAIPanel } from './ui/HeistAIPanel'
@@ -50,6 +51,7 @@ export default function App() {
       {toast && <div className="toast">{toast}</div>}
 
       {active === 'voice' && <VoiceModulatorPanel onClose={() => setActive(null)} />}
+      {active === 'faceswap' && <FaceSwapPanel onClose={() => setActive(null)} />}
       {active === 'fakeid' && <FakeIdPanel onClose={() => setActive(null)} />}
     </>
   )

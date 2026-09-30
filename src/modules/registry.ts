@@ -10,7 +10,7 @@ export type ModuleInfo = {
 /** Order here is the order of the slots in the suitcase (3 across, 2 deep). */
 export const MODULES: ModuleInfo[] = [
   { id: 'voice', name: 'Voice Modulator', tagline: 'Disguise your voice in real time', ready: true },
-  { id: 'faceswap', name: 'Face-Swap Lens', tagline: 'Wear someone else’s face on camera', ready: false },
+  { id: 'faceswap', name: 'Face-Swap Lens', tagline: 'Wear someone else’s face on camera', ready: true },
   { id: 'heistai', name: 'HeistAI', tagline: 'Your crew’s AI mastermind', ready: true },
   { id: 'alibi', name: 'Alibi Generator', tagline: 'A watertight backstory, on demand', ready: true },
   { id: 'fakeid', name: 'ID Forge', tagline: 'Snap a photo, print a crew ID', ready: true },
