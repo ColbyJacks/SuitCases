@@ -5,19 +5,6 @@ const dim = { color: '#3a3d42', metalness: 0.6, roughness: 0.5 }
 /** Stand-in props for modules that haven't been built yet. Swap each for the real thing. */
 export function PlaceholderModule({ id }: { id: ModuleId }) {
   switch (id) {
-    case 'faceswap':
-      return (
-        <group>
-          <mesh castShadow position={[0, 0.05, 0]}>
-            <cylinderGeometry args={[0.09, 0.1, 0.1, 40]} />
-            <meshStandardMaterial {...dim} />
-          </mesh>
-          <mesh position={[0, 0.101, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <circleGeometry args={[0.065, 40]} />
-            <meshStandardMaterial color="#0b1a2e" metalness={0.9} roughness={0.05} />
-          </mesh>
-        </group>
-      )
     case 'heistai':
       return (
         <group>

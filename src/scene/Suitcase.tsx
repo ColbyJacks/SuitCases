@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { MODULES, type ModuleId, type ModuleInfo } from '../modules/registry'
 import { VoiceModulatorModule } from '../modules/VoiceModulatorModule'
 import { PlaceholderModule } from '../modules/PlaceholderModules'
+import { FaceSwapLensModule } from '../modules/FaceSwapLensModule'
 
 const W = 1.2 // width
 const D = 0.8 // depth
@@ -115,6 +116,8 @@ function ModuleSlot({
       >
         {info.id === 'voice' ? (
           <VoiceModulatorModule hovered={hovered} active={active} />
+        ) : info.id === 'faceswap' ? (
+          <FaceSwapLensModule hovered={hovered} active={active} />
         ) : (
           <PlaceholderModule id={info.id} />
         )}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Scene } from './scene/Scene'
 import { VoiceModulatorPanel } from './ui/VoiceModulatorPanel'
+import { FaceSwapPanel } from './ui/FaceSwapPanel'
 import type { ModuleId, ModuleInfo } from './modules/registry'
 
 export default function App() {
@@ -45,6 +46,7 @@ export default function App() {
       {toast && <div className="toast">{toast}</div>}
 
       {active === 'voice' && <VoiceModulatorPanel onClose={() => setActive(null)} />}
+      {active === 'faceswap' && <FaceSwapPanel onClose={() => setActive(null)} />}
     </>
   )
 }
