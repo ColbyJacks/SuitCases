@@ -17,13 +17,6 @@ export default function App() {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState<ModuleId | null>(null)
   const [toast, setToast] = useState<ModuleInfo | null>(null)
-  const [wide, setWide] = useState(() => window.innerWidth >= 768)
-
-  useEffect(() => {
-    const onResize = () => setWide(window.innerWidth >= 768)
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
 
   // Canvas textures (nameplate, blueprint, cash) draw text, so wait for the fonts.
   useEffect(() => {
@@ -89,33 +82,40 @@ export default function App() {
 
       {/* title, centred above the case */}
       <motion.header
-        className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center px-4 pt-[max(3.5vh,20px)]"
-        animate={{
-          y: active ? -14 : open ? -8 : 0,
-          scale: active ? 0.78 : open ? 0.88 : 1,
-          x: active && wide ? -200 : 0,
-          opacity: active && !wide ? 0 : 1,
-        }}
-        transition={{ type: 'spring', bounce: 0.15, duration: 0.9 }}
+        className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center px-4 pt-[max(3vh,18px)]"
+        // the title bows out while the case is open and returns when it closes
+        animate={open ? { opacity: 0, y: -28, scale: 0.94, filter: 'blur(10px)' } : { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+        transition={open ? { duration: 0.5, ease: [0.4, 0, 0.2, 1] } : { type: 'spring', bounce: 0.15, duration: 0.9, delay: 0.35 }}
       >
+        {/* soft dark pool behind the lockup so it reads over the lamp beam */}
+        <motion.div
+          aria-hidden
+          className="absolute left-1/2 top-[-60px] -z-10 h-[330px] w-[min(1200px,150vw)] -translate-x-1/2 bg-[radial-gradient(ellipse_50%_70%_at_50%_18%,rgba(5,6,8,0.86)_0%,rgba(5,6,8,0.6)_45%,rgba(5,6,8,0)_100%)]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.8 }}
+          transition={{ duration: 0.8 }}
+        />
         <motion.div
           initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }}
           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
           transition={{ delay: 0.5, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-          className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.32em] text-mute sm:text-[11px]"
+          className="flex items-center gap-2.5 rounded-full border border-white/[0.09] bg-ink/60 py-1.5 pl-2.5 pr-3.5 font-mono text-[10px] uppercase tracking-[0.24em] text-paper/80 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.9)] backdrop-blur-md sm:text-[11px]"
         >
-          <span className="h-px w-8 bg-gradient-to-r from-transparent to-gold/60" />
-          <span>RowdyHacks · Case file Nº 026</span>
-          <span className="h-px w-8 bg-gradient-to-l from-transparent to-gold/60" />
+          <span className="size-1.5 animate-pulse rounded-full bg-laser shadow-[0_0_8px_rgba(255,61,74,0.9)]" />
+          <span>
+            RowdyHacks <span className="text-gold">·</span> Case file Nº 026
+          </span>
         </motion.div>
-        <ShaderTitle className="-mt-1 h-[clamp(64px,11vw,132px)] w-[min(94vw,980px)] drop-shadow-[0_0_26px_rgba(227,160,80,0.3)]" />
-        <motion.div animate={{ opacity: open ? 0 : 1, y: open ? -6 : 0 }} transition={{ duration: 0.5 }}>
+        <ShaderTitle className="mt-1 h-[clamp(68px,11.5vw,138px)] w-[min(94vw,1000px)] [filter:drop-shadow(0_1px_1px_rgba(0,0,0,0.95))_drop-shadow(0_6px_22px_rgba(0,0,0,0.8))]" />
+        <div className="flex items-center gap-3">
+          <span className="h-px w-6 bg-gradient-to-r from-transparent to-gold/70 sm:w-10" />
           <Scramble
             text="SIX TOOLS. ONE JOB. ZERO WITNESSES."
             delay={1700}
-            className="-mt-1 font-mono text-[10px] tracking-[0.3em] text-paper/55 sm:text-xs"
+            className="whitespace-pre font-mono text-[10.5px] tracking-[0.26em] text-paper/90 [text-shadow:0_1px_10px_rgba(0,0,0,0.95)] sm:text-[13px]"
           />
-        </motion.div>
+          <span className="h-px w-6 bg-gradient-to-l from-transparent to-gold/70 sm:w-10" />
+        </div>
       </motion.header>
 
       {/* bottom: hint while closed, dock once open */}

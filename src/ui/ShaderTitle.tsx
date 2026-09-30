@@ -8,8 +8,8 @@ void main() {
   gl_Position = vec4(p, 0.0, 1.0);
 }`
 
-// Liquid-gold text: noise-driven metal bands, a travelling specular sweep,
-// a cursor light with ripple, a noisy left-to-right reveal and film grain.
+// Polished-gold text: soft noise-driven metal bands, a bevel, a travelling
+// specular sweep, a cursor light with a faint ripple and a noisy left-to-right reveal.
 const FRAG = `
 precision highp float;
 uniform sampler2D uMask;
@@ -38,32 +38,37 @@ void main() {
   vec2 m = vec2(uMouse.x * aspect, uMouse.y);
   float d = distance(q, m);
 
+  // gentle drift only, so the letter edges stay crisp
   vec2 flow = vec2(fbm(q * 2.0 + uTime * 0.08), fbm(q * 2.0 - uTime * 0.08 + 7.0)) - 0.5;
-  vec2 ripple = (q - m) / max(d, 1e-3) * sin(d * 38.0 - uTime * 5.0) * exp(-d * 5.0) * 0.004;
-  vec2 suv = uv + flow * 0.006 + vec2(ripple.x / aspect, ripple.y);
+  vec2 ripple = (q - m) / max(d, 1e-3) * sin(d * 38.0 - uTime * 5.0) * exp(-d * 6.0) * 0.0015;
+  vec2 suv = uv + flow * 0.0012 + vec2(ripple.x / aspect, ripple.y);
 
   float mask = texture2D(uMask, suv).r;
+  // bevel: light catches the top edge of each stroke, the bottom edge falls into shade
+  float px = 1.5 / uRes.y;
+  float bevel = texture2D(uMask, suv - vec2(0.0, px)).r - texture2D(uMask, suv + vec2(0.0, px)).r;
 
+  // polished gold that never drops below mid-tone, so every letter stays readable
   float n = fbm(q * vec2(1.2, 3.0) + vec2(uTime * 0.05, 0.0));
-  float bands = sin((uv.y * 2.2 + n * 3.0 + uTime * 0.12) * 6.2831);
-  vec3 deep = vec3(0.30, 0.19, 0.07);
-  vec3 gold = vec3(0.91, 0.71, 0.39);
-  vec3 cream = vec3(1.0, 0.95, 0.84);
-  vec3 col = mix(deep, gold, smoothstep(-1.0, 0.25, bands));
-  col = mix(col, cream, smoothstep(0.55, 1.0, bands));
-  col *= 0.8 + 0.35 * smoothstep(0.0, 1.0, uv.y);
+  float bands = sin((uv.y * 2.0 + n * 2.2 + uTime * 0.12) * 6.2831);
+  vec3 low = vec3(0.80, 0.58, 0.27);
+  vec3 gold = vec3(0.96, 0.78, 0.45);
+  vec3 cream = vec3(1.0, 0.95, 0.83);
+  vec3 col = mix(low, gold, smoothstep(-1.0, 0.4, bands));
+  col = mix(col, cream, smoothstep(0.6, 1.0, bands) * 0.7);
+  col *= 0.9 + 0.18 * uv.y;
+  col += bevel * 0.16;
 
   float sweepX = fract(uTime * 0.11) * 2.2 - 0.6;
   float sweep = smoothstep(0.07, 0.0, abs(uv.x - sweepX + (uv.y - 0.5) * 0.35));
-  col += vec3(1.0, 0.93, 0.8) * sweep * 0.8;
-  col += vec3(1.0, 0.8, 0.55) * exp(-d * 7.0) * 0.55;
+  col += vec3(1.0, 0.94, 0.82) * sweep * 0.5;
+  col += vec3(1.0, 0.85, 0.6) * exp(-d * 7.0) * 0.35;
 
   float edge = fbm(q * 5.0) * 0.35;
   float reveal = smoothstep(0.0, 0.08, uReveal * 1.45 - (uv.x * 1.0 + edge));
-  float grain = (hash(uv * uRes + fract(uTime) * 91.0) - 0.5) * 0.12;
 
   float a = mask * reveal;
-  vec3 rgb = (col + grain) * a;
+  vec3 rgb = min(col, vec3(1.0)) * a;
   gl_FragColor = vec4(rgb, a);
 }`
 
@@ -144,15 +149,20 @@ export function ShaderTitle({ className }: Props) {
         g.translate(mc.width / 2, mc.height * 0.72)
         g.scale(scale, scale)
         g.textBaseline = 'alphabetic'
+        // a thin stroke of the same colour thickens the serif's hairlines so they survive small sizes
+        g.lineWidth = size * 0.022
+        g.lineJoin = 'round'
         g.font = roman
         g.fillText(a, -(wa + wb) / 2, 0)
+        g.strokeText(a, -(wa + wb) / 2, 0)
         g.font = italic
         g.fillText(b, -(wa + wb) / 2 + wa, 0)
+        g.strokeText(b, -(wa + wb) / 2 + wa, 0)
         g.restore()
       }
       // R channel: the letters
       g.clearRect(0, 0, mc.width, mc.height)
-      g.fillStyle = 'rgb(255,0,0)'
+      g.fillStyle = g.strokeStyle = 'rgb(255,0,0)'
       draw()
       gl.bindTexture(gl.TEXTURE_2D, tex)
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, mc)
