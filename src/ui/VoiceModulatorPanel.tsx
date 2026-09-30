@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { DEFAULT_PARAMS, PRESETS, voiceEngine, type VoiceParams } from '../audio/voiceEngine'
+import { Button, ErrorNote, PanelShell, Section, Slider, Toggle, deviceError } from './PanelShell'
 
 const PRESET_META: Record<string, { icon: LucideIcon; blurb: string }> = {
   Natural: { icon: UserRound, blurb: 'Your own voice' },
@@ -143,18 +144,6 @@ function MicControl({ live, onToggle }: { live: boolean; onToggle: () => void })
   )
 }
 
-function Section({ label, children, aside }: { label: string; children: React.ReactNode; aside?: React.ReactNode }) {
-  return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h3 className="font-mono text-[10px] uppercase tracking-[0.22em] text-mute">{label}</h3>
-        {aside}
-      </div>
-      {children}
-    </section>
-  )
-}
-
 function ClipPlayer({ url, onClear }: { url: string; onClear: () => void }) {
   const audio = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
@@ -232,12 +221,7 @@ export function VoiceModulatorPanel({ onClose }: { onClose: () => void }) {
         setLive(true)
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setError(
-        /denied|not allowed|permission/i.test(msg)
-          ? 'Microphone access was blocked. Allow the mic for this site in your browser, then try again.'
-          : `The microphone didn’t start: ${msg}`,
-      )
+      setError(deviceError(e, 'microphone'))
     }
   }
 
@@ -253,162 +237,94 @@ export function VoiceModulatorPanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <motion.aside
-      role="dialog"
-      aria-label="Voice Modulator"
-      initial={{ x: 60, opacity: 0, filter: 'blur(12px)' }}
-      animate={{ x: 0, opacity: 1, filter: 'blur(0px)' }}
-      exit={{ x: 60, opacity: 0, filter: 'blur(12px)' }}
-      transition={{ type: 'spring', bounce: 0.18, duration: 0.7 }}
-      className="glow-border grain pointer-events-auto fixed inset-x-3 bottom-3 z-30 flex max-h-[64vh] flex-col rounded-3xl border border-white/[0.07] bg-ink-2/80 shadow-[0_40px_120px_-20px_rgba(0,0,0,0.95)] backdrop-blur-2xl md:left-auto md:bottom-5 md:right-5 md:top-5 md:max-h-none md:w-[380px]"
+    <PanelShell
+      id="voice"
+      title={
+        <>
+          Voice <em>Modulator</em>
+        </>
+      }
+      status={live ? { live: true, label: 'Live' } : { live: false, label: 'Standby' }}
+      onClose={onClose}
     >
-      <header className="flex items-start gap-3 border-b border-white/[0.06] p-5 pb-4">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#f3d493] via-gold to-gold-dim text-ink shadow-[0_8px_24px_-6px_rgba(227,181,99,0.6)]">
-          <Mic className="size-5" strokeWidth={2} />
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-mute">
-            Module 01 · VOX-7
-            <span className={clsx('flex items-center gap-1.5 transition-colors', live ? 'text-[#ff8a92]' : 'text-mute/70')}>
-              <span className={clsx('size-1.5 rounded-full', live ? 'animate-pulse bg-laser' : 'bg-white/25')} />
-              {live ? 'Live' : 'Standby'}
-            </span>
-          </span>
-          <h2 className="whitespace-nowrap font-display text-[27px] leading-none text-paper">
-            Voice <em>Modulator</em>
-          </h2>
-        </div>
-        <div className="flex items-center">
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="flex size-8 items-center justify-center rounded-lg text-mute transition-colors hover:bg-white/[0.06] hover:text-paper"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-      </header>
+      <MicControl live={live} onToggle={toggleMic} />
 
-      <div className="flex flex-col gap-6 overflow-y-auto p-5 [scrollbar-width:thin]">
-        <MicControl live={live} onToggle={toggleMic} />
+      <AnimatePresence>{error && <ErrorNote key="err">{error}</ErrorNote>}</AnimatePresence>
 
-        <AnimatePresence>
-          {error && (
-            <motion.p
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="-mt-3 rounded-xl border border-laser/30 bg-laser/10 px-3 py-2 text-xs leading-relaxed text-[#ffb3b8]"
-            >
-              {error}
-            </motion.p>
-          )}
-        </AnimatePresence>
-
-        <label className="-mt-2 flex cursor-pointer items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
-          <span className="flex items-center gap-2.5 text-sm text-paper/85">
-            <Headphones className="size-4 text-mute" />
-            Hear myself
-            <span className="text-xs text-mute">(use headphones)</span>
-          </span>
-          <input type="checkbox" className="peer sr-only" checked={monitor} onChange={(e) => setMonitor(e.target.checked)} />
-          <span className="relative h-5 w-9 rounded-full bg-white/10 transition-colors peer-checked:bg-gold peer-focus-visible:ring-2 peer-focus-visible:ring-gold peer-checked:[&>span]:translate-x-4">
-            <span className="absolute left-0.5 top-0.5 size-4 rounded-full bg-paper shadow transition-transform" />
-          </span>
-        </label>
-
-        <Section label="Disguise">
-          <div className="grid grid-cols-3 gap-2">
-            {PRESETS.map((p) => {
-              const meta = PRESET_META[p.name]
-              const Icon = meta.icon
-              const selected = preset === p.name
-              return (
-                <motion.button
-                  key={p.name}
-                  whileTap={{ scale: 0.96 }}
-                  onClick={() => {
-                    setPreset(p.name)
-                    setParams({ ...p.params })
-                  }}
-                  aria-pressed={selected}
-                  className={clsx(
-                    'relative flex flex-col items-start gap-2 rounded-xl border p-2.5 text-left transition-colors',
-                    selected ? 'border-transparent' : 'border-white/[0.06] hover:border-white/15 hover:bg-white/[0.03]',
-                  )}
-                >
-                  {selected && (
-                    <motion.span
-                      layoutId="preset-highlight"
-                      transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
-                      className="absolute inset-0 rounded-xl border border-gold/50 bg-gradient-to-b from-gold/[0.16] to-gold/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_24px_-8px_rgba(227,181,99,0.6)]"
-                    />
-                  )}
-                  <Icon className={clsx('relative size-4', selected ? 'text-gold' : 'text-mute')} strokeWidth={1.75} />
-                  <span className="relative flex flex-col">
-                    <span className={clsx('text-[13px] font-medium', selected ? 'text-paper' : 'text-paper/80')}>{p.name}</span>
-                    <span className="text-[11px] leading-tight text-mute">{meta.blurb}</span>
-                  </span>
-                </motion.button>
-              )
-            })}
-          </div>
-        </Section>
-
-        <Section
-          label="Fine tune"
-          aside={
-            preset === 'Custom' ? (
-              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-gold/80">Custom</span>
-            ) : undefined
-          }
-        >
-          <div className="flex flex-col gap-1">
-            {SLIDERS.map((s) => {
-              const v = params[s.key]
-              const fill = ((v - s.min) / (s.max - s.min)) * 100
-              return (
-                <label key={s.key} htmlFor={`vox-${s.key}`} className="grid grid-cols-[64px_1fr_52px] items-center gap-3 text-[13px]">
-                  <span className="text-paper/75">{s.label}</span>
-                  <input
-                    id={`vox-${s.key}`}
-                    type="range"
-                    className="slider w-full"
-                    min={s.min}
-                    max={s.max}
-                    step={0.01}
-                    value={v}
-                    style={{ ['--fill' as string]: `${fill}%` }}
-                    onChange={(e) => {
-                      setPreset('Custom')
-                      setParams({ ...params, [s.key]: Number(e.target.value) })
-                    }}
-                  />
-                  <output className="text-right font-mono text-xs tabular-nums text-gold/90">{s.fmt(v)}</output>
-                </label>
-              )
-            })}
-          </div>
-        </Section>
-
-        <Section label="Evidence">
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            disabled={!live}
-            onClick={toggleRecord}
-            className={clsx(
-              'flex h-11 items-center justify-center gap-2 rounded-xl border text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40',
-              recording
-                ? 'border-laser/50 bg-laser/15 text-[#ffb3b8]'
-                : 'border-white/10 bg-white/[0.04] text-paper hover:border-white/20 hover:bg-white/[0.07]',
-            )}
-          >
-            <span className={clsx('size-2.5 rounded-full bg-laser', recording && 'animate-pulse')} />
-            {recording ? 'Stop recording' : live ? 'Record a clip' : 'Go live to record'}
-          </motion.button>
-          <AnimatePresence>{clip && <ClipPlayer key={clip} url={clip} onClear={() => setClip(null)} />}</AnimatePresence>
-        </Section>
+      <div className="-mt-2">
+        <Toggle label="Hear myself" hint="use headphones" icon={Headphones} checked={monitor} onChange={setMonitor} />
       </div>
-    </motion.aside>
+
+      <Section label="Disguise">
+        <div className="grid grid-cols-3 gap-2">
+          {PRESETS.map((p) => {
+            const meta = PRESET_META[p.name]
+            const Icon = meta.icon
+            const selected = preset === p.name
+            return (
+              <motion.button
+                key={p.name}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => {
+                  setPreset(p.name)
+                  setParams({ ...p.params })
+                }}
+                aria-pressed={selected}
+                className={clsx(
+                  'relative flex flex-col items-start gap-2 rounded-xl border p-2.5 text-left transition-colors',
+                  selected ? 'border-transparent' : 'border-white/[0.06] hover:border-white/15 hover:bg-white/[0.03]',
+                )}
+              >
+                {selected && (
+                  <motion.span
+                    layoutId="preset-highlight"
+                    transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
+                    className="absolute inset-0 rounded-xl border border-gold/50 bg-gradient-to-b from-gold/[0.16] to-gold/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_24px_-8px_rgba(227,181,99,0.6)]"
+                  />
+                )}
+                <Icon className={clsx('relative size-4', selected ? 'text-gold' : 'text-mute')} strokeWidth={1.75} />
+                <span className="relative flex flex-col">
+                  <span className={clsx('text-[13px] font-medium', selected ? 'text-paper' : 'text-paper/80')}>{p.name}</span>
+                  <span className="text-[11px] leading-tight text-mute">{meta.blurb}</span>
+                </span>
+              </motion.button>
+            )
+          })}
+        </div>
+      </Section>
+
+      <Section
+        label="Fine tune"
+        aside={
+          preset === 'Custom' ? <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-gold/80">Custom</span> : undefined
+        }
+      >
+        <div className="flex flex-col gap-1">
+          {SLIDERS.map((s) => (
+            <Slider
+              key={s.key}
+              id={`vox-${s.key}`}
+              label={s.label}
+              value={params[s.key]}
+              min={s.min}
+              max={s.max}
+              format={s.fmt}
+              onChange={(v) => {
+                setPreset('Custom')
+                setParams({ ...params, [s.key]: v })
+              }}
+            />
+          ))}
+        </div>
+      </Section>
+
+      <Section label="Evidence">
+        <Button variant={recording ? 'danger' : 'secondary'} disabled={!live} onClick={toggleRecord}>
+          <span className={clsx('size-2.5 rounded-full bg-laser', recording && 'animate-pulse')} />
+          {recording ? 'Stop recording' : live ? 'Record a clip' : 'Go live to record'}
+        </Button>
+        <AnimatePresence>{clip && <ClipPlayer key={clip} url={clip} onClear={() => setClip(null)} />}</AnimatePresence>
+      </Section>
+    </PanelShell>
   )
 }

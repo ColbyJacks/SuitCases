@@ -43,7 +43,6 @@ void main() {
   vec2 suv = uv + flow * 0.006 + vec2(ripple.x / aspect, ripple.y);
 
   float mask = texture2D(uMask, suv).r;
-  float glow = texture2D(uMask, uv).g;
 
   float n = fbm(q * vec2(1.2, 3.0) + vec2(uTime * 0.05, 0.0));
   float bands = sin((uv.y * 2.2 + n * 3.0 + uTime * 0.12) * 6.2831);
@@ -65,10 +64,7 @@ void main() {
 
   float a = mask * reveal;
   vec3 rgb = (col + grain) * a;
-  float edgeFade = smoothstep(0.0, 0.25, uv.y) * smoothstep(1.0, 0.75, uv.y) * smoothstep(0.0, 0.08, uv.x) * smoothstep(1.0, 0.92, uv.x);
-  float haze = glow * glow * 0.12 * reveal * edgeFade;
-  rgb += vec3(0.95, 0.55, 0.2) * haze * (0.7 + 0.3 * sin(uTime * 1.5));
-  gl_FragColor = vec4(rgb, max(a, haze));
+  gl_FragColor = vec4(rgb, a);
 }`
 
 type Props = {
@@ -154,13 +150,8 @@ export function ShaderTitle({ className }: Props) {
         g.fillText(b, -(wa + wb) / 2 + wa, 0)
         g.restore()
       }
-      // R: crisp letters, G: blurred copy for the glow
+      // R channel: the letters
       g.clearRect(0, 0, mc.width, mc.height)
-      g.fillStyle = 'rgb(0,255,0)'
-      g.filter = `blur(${Math.round(canvas.height * 0.08)}px)`
-      draw()
-      g.filter = 'none'
-      g.globalCompositeOperation = 'lighter'
       g.fillStyle = 'rgb(255,0,0)'
       draw()
       gl.bindTexture(gl.TEXTURE_2D, tex)

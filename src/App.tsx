@@ -3,6 +3,10 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Lock, MousePointerClick } from 'lucide-react'
 import { Scene } from './scene/Scene'
 import { VoiceModulatorPanel } from './ui/VoiceModulatorPanel'
+import { FaceSwapPanel } from './ui/FaceSwapPanel'
+import { HeistAIPanel } from './ui/HeistAIPanel'
+import { AlibiPanel } from './ui/AlibiPanel'
+import { FakeIdPanel } from './ui/FakeIdPanel'
 import { ShaderTitle } from './ui/ShaderTitle'
 import { Scramble } from './ui/Scramble'
 import { Dock, MODULE_ICONS } from './ui/Dock'
@@ -57,6 +61,8 @@ export default function App() {
     else setToast(m)
   }
 
+  const close = () => setActive(null)
+
   const ToastIcon = toast ? MODULE_ICONS[toast.id] : Lock
 
   return (
@@ -102,7 +108,7 @@ export default function App() {
           <span>RowdyHacks · Case file Nº 026</span>
           <span className="h-px w-8 bg-gradient-to-l from-transparent to-gold/60" />
         </motion.div>
-        <ShaderTitle className="-mt-1 h-[clamp(64px,11vw,132px)] w-[min(94vw,980px)]" />
+        <ShaderTitle className="-mt-1 h-[clamp(64px,11vw,132px)] w-[min(94vw,980px)] drop-shadow-[0_0_26px_rgba(227,160,80,0.3)]" />
         <motion.div animate={{ opacity: open ? 0 : 1, y: open ? -6 : 0 }} transition={{ duration: 0.5 }}>
           <Scramble
             text="SIX TOOLS. ONE JOB. ZERO WITNESSES."
@@ -164,7 +170,13 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>{active === 'voice' && <VoiceModulatorPanel key="voice" onClose={() => setActive(null)} />}</AnimatePresence>
+      <AnimatePresence mode="wait">
+        {active === 'voice' && <VoiceModulatorPanel key="voice" onClose={close} />}
+        {active === 'faceswap' && <FaceSwapPanel key="faceswap" onClose={close} />}
+        {active === 'heistai' && <HeistAIPanel key="heistai" onClose={close} />}
+        {active === 'alibi' && <AlibiPanel key="alibi" onClose={close} />}
+        {active === 'fakeid' && <FakeIdPanel key="fakeid" onClose={close} />}
+      </AnimatePresence>
     </div>
   )
 }

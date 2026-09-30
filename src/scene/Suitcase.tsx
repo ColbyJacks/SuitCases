@@ -5,6 +5,8 @@ import * as THREE from 'three'
 import { MODULES, type ModuleId, type ModuleInfo } from '../modules/registry'
 import { VoiceModulatorModule } from '../modules/VoiceModulatorModule'
 import { PlaceholderModule } from '../modules/PlaceholderModules'
+import { FaceSwapLensModule } from '../modules/FaceSwapLensModule'
+import { FakeIdModule } from '../modules/FakeIdModule'
 import { Spring } from '../lib/spring'
 import { brushedRoughness, dialNumbers, nameplate } from './textures'
 
@@ -19,6 +21,19 @@ const FOAM_TOP = 0.05
 const SLOT_W = 0.31
 const SLOT_D = 0.29
 const OPEN_ANGLE = -1.92
+
+/**
+ * Time since the case last opened or closed, counted in the same clamped steps
+ * the springs use, so the open/close choreography keeps its order at any frame rate.
+ */
+function tickPhase(p: { open: boolean; time: number }, open: boolean, dt: number) {
+  if (p.open !== open) {
+    p.open = open
+    p.time = 0
+  } else p.time += Math.min(dt, 0.1)
+  return p.time
+}
+const TRIM_H = 0.011
 const COLS = 3
 const CELL_W = (W - 2 * T) / COLS
 const CELL_D = (D - 2 * T) / 2
@@ -66,9 +81,11 @@ function useShellGeometry(height: number) {
     ring.holes.push(holePath(W - 2 * T, D - 2 * T, R - T * 0.6))
     const walls = extrudeUp(ring, height, 0.006)
     const floor = extrudeUp(roundedRect(W - 0.01, D - 0.01, R), T)
+    // Rubber gasket band around the outside of the rim. Its inner edge is buried in the
+    // wall and its top sits below the wall top, so no faces are coplanar (no z-fighting).
     const trim = roundedRect(W + 0.014, D + 0.014, R + 0.007)
-    trim.holes.push(holePath(W - 2 * T + 0.004, D - 2 * T + 0.004, R - T * 0.6))
-    const trimGeo = extrudeUp(trim, 0.014, 0.003)
+    trim.holes.push(holePath(W - 0.006, D - 0.006, R - 0.003))
+    const trimGeo = extrudeUp(trim, TRIM_H, 0.003)
     return { walls, floor, trimGeo }
   }, [height])
 }
@@ -152,12 +169,18 @@ function Rivets({ y, m }: { y: number; m: Materials }) {
 /** Egg-crate foam for the inside of the lid. */
 function EggCrate({ m }: { m: Materials }) {
   const geo = useMemo(() => {
-    const g = new THREE.PlaneGeometry(W - 2 * T - 0.01, D - 2 * T - 0.01, 90, 60)
+    const fw = W - 2 * T - 0.01
+    const fd = D - 2 * T - 0.01
+    const hw = fw / 2
+    const hd = fd / 2
+    const g = new THREE.PlaneGeometry(fw, fd, 90, 60)
     const pos = g.attributes.position
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i)
       const y = pos.getY(i)
-      pos.setZ(i, (Math.sin(x * 55) * Math.sin(y * 55) + 1) * 0.007)
+      // flatten toward the edges so the foam meets the walls cleanly
+      const edge = Math.min(1, (hw - Math.abs(x)) / 0.03, (hd - Math.abs(y)) / 0.03)
+      pos.setZ(i, (Math.sin(x * 55) * Math.sin(y * 55) + 1) * 0.007 * Math.max(0, edge))
     }
     g.computeVertexNormals()
     return g
@@ -253,17 +276,18 @@ function ModuleSlot({ info, index, open, active, onSelect }: SlotProps) {
   const glow = useRef<THREE.MeshStandardMaterial>(null)
   const rise = useRef(new Spring(-0.06, 90, 11))
   const hover = useRef(new Spring(0, 200, 18))
-  const openedAt = useRef<number | null>(null)
+  const phase = useRef({ open, time: 0 })
   useCursor(hovered && open)
   const { x, z } = slotPosition(index)
 
   useFrame((state, dt) => {
     const t = state.clock.elapsedTime
-    if (open && openedAt.current === null) openedAt.current = t
-    if (!open) openedAt.current = null
-    const released = openedAt.current !== null && t - openedAt.current > 0.55 + index * 0.07
+    const since = tickPhase(phase.current, open, dt)
+    const released = open && since > 0.55 + index * 0.07
+    rise.current.stiffness = open ? 90 : 260
+    rise.current.damping = open ? 11 : 32
     const base = rise.current.step(released ? 0 : -0.06, dt)
-    const up = hover.current.step(hovered || active ? 0.03 : 0, dt)
+    const up = hover.current.step(open && (hovered || active) ? 0.03 : 0, dt)
     if (lift.current) {
       lift.current.position.y = base + up + (active ? Math.sin(t * 2) * 0.004 : 0)
       lift.current.rotation.y = THREE.MathUtils.damp(lift.current.rotation.y, active ? Math.sin(t * 0.8) * 0.15 : 0, 4, dt)
@@ -296,6 +320,10 @@ function ModuleSlot({ info, index, open, active, onSelect }: SlotProps) {
       >
         {info.id === 'voice' ? (
           <VoiceModulatorModule hovered={hovered} active={active} />
+        ) : info.id === 'faceswap' ? (
+          <FaceSwapLensModule hovered={hovered} active={active} />
+        ) : info.id === 'fakeid' ? (
+          <FakeIdModule hovered={hovered} active={active} />
         ) : (
           <PlaceholderModule id={info.id} hovered={hovered} />
         )}
@@ -329,7 +357,7 @@ export function Suitcase({ open, onToggle, activeModule, onSelectModule }: Props
   const lidGeo = useShellGeometry(LH)
   const lid = useRef<THREE.Group>(null)
   const lidSpring = useRef(new Spring(0, 38, 7.5))
-  const openedAt = useRef<number | null>(null)
+  const phase = useRef({ open, time: 0 })
   const led = useRef<THREE.MeshStandardMaterial>(null)
   const inner = useRef<THREE.PointLight>(null)
   const hoverLift = useRef(new Spring(0, 160, 14))
@@ -338,13 +366,18 @@ export function Suitcase({ open, onToggle, activeModule, onSelectModule }: Props
   useCursor(hovered)
   const plate = useMemo(() => nameplate('RH·26', 'PROPERTY OF THE CREW'), [])
 
-  useFrame((state, dt) => {
-    const t = state.clock.elapsedTime
-    if (open && openedAt.current === null) openedAt.current = t
-    if (!open) openedAt.current = null
-    // latches pop first, then the lid swings
-    const lidGo = openedAt.current !== null && t - openedAt.current > 0.28
-    const angle = lidSpring.current.step(lidGo ? OPEN_ANGLE : 0, dt)
+  useFrame((_, dt) => {
+    const since = tickPhase(phase.current, open, dt)
+    // Opening: latches pop first, then the lid swings. Closing: modules sink first.
+    const lidGo = open && since > 0.28
+    const spring = lidSpring.current
+    const lidHold = !open && since < 0.22 && spring.value < -0.05
+    let angle = spring.step(lidGo || lidHold ? OPEN_ANGLE : 0, dt)
+    if (angle > 0) {
+      // lid meets the base: stop dead with a tiny settle instead of passing through
+      angle = spring.value = 0
+      spring.velocity = Math.min(0, -spring.velocity * 0.15)
+    }
     if (lid.current) lid.current.rotation.x = Math.max(angle, OPEN_ANGLE - 0.12)
     const openness = THREE.MathUtils.clamp(angle / OPEN_ANGLE, 0, 1)
     if (led.current) led.current.emissiveIntensity = openness * 4
@@ -373,7 +406,7 @@ export function Suitcase({ open, onToggle, activeModule, onSelectModule }: Props
       >
         <mesh geometry={base.walls} material={m.shell} castShadow receiveShadow />
         <mesh geometry={base.floor} material={m.shell} receiveShadow />
-        <mesh geometry={base.trimGeo} position={[0, H - 0.014, 0]} material={m.trim} />
+        <mesh geometry={base.trimGeo} position={[0, H - 0.003 - TRIM_H, 0]} material={m.trim} />
         <Corners height={H} m={m} />
         <Rivets y={H - 0.03} m={m} />
         <FoamInsert m={m} />
@@ -418,7 +451,7 @@ export function Suitcase({ open, onToggle, activeModule, onSelectModule }: Props
           <group position={[0, LH, 0]} rotation={[0, 0, Math.PI]}>
             <mesh geometry={lidGeo.walls} material={m.shell} castShadow receiveShadow />
             <mesh geometry={lidGeo.floor} material={m.shell} castShadow />
-            <mesh geometry={lidGeo.trimGeo} position={[0, LH - 0.014, 0]} material={m.trim} />
+            <mesh geometry={lidGeo.trimGeo} position={[0, LH - 0.003 - TRIM_H, 0]} material={m.trim} />
             <group position={[0, T + 0.001, 0]}>
               <EggCrate m={m} />
             </group>
