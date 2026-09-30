@@ -6,6 +6,7 @@ import { MODULES, type ModuleId, type ModuleInfo } from '../modules/registry'
 import { VoiceModulatorModule } from '../modules/VoiceModulatorModule'
 import { PlaceholderModule } from '../modules/PlaceholderModules'
 import { FaceSwapLensModule } from '../modules/FaceSwapLensModule'
+import { FakeIdModule } from '../modules/FakeIdModule'
 
 const W = 1.2 // width
 const D = 0.8 // depth
@@ -118,6 +119,8 @@ function ModuleSlot({
           <VoiceModulatorModule hovered={hovered} active={active} />
         ) : info.id === 'faceswap' ? (
           <FaceSwapLensModule hovered={hovered} active={active} />
+        ) : info.id === 'fakeid' ? (
+          <FakeIdModule hovered={hovered} active={active} />
         ) : (
           <PlaceholderModule id={info.id} />
         )}

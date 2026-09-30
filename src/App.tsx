@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Scene } from './scene/Scene'
 import { VoiceModulatorPanel } from './ui/VoiceModulatorPanel'
 import { FaceSwapPanel } from './ui/FaceSwapPanel'
+import { FakeIdPanel } from './ui/FakeIdPanel'
 import type { ModuleId, ModuleInfo } from './modules/registry'
 
 export default function App() {
@@ -47,6 +48,7 @@ export default function App() {
 
       {active === 'voice' && <VoiceModulatorPanel onClose={() => setActive(null)} />}
       {active === 'faceswap' && <FaceSwapPanel onClose={() => setActive(null)} />}
+      {active === 'fakeid' && <FakeIdPanel onClose={() => setActive(null)} />}
     </>
   )
 }
