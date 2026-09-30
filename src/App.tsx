@@ -1,58 +1,182 @@
 import { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
+import { Lock, MousePointerClick } from 'lucide-react'
 import { Scene } from './scene/Scene'
 import { VoiceModulatorPanel } from './ui/VoiceModulatorPanel'
 import { FaceSwapPanel } from './ui/FaceSwapPanel'
-import { FakeIdPanel } from './ui/FakeIdPanel'
-import type { ModuleId, ModuleInfo } from './modules/registry'
 import { HeistAIPanel } from './ui/HeistAIPanel'
 import { AlibiPanel } from './ui/AlibiPanel'
+import { FakeIdPanel } from './ui/FakeIdPanel'
+import { ShaderTitle } from './ui/ShaderTitle'
+import { Scramble } from './ui/Scramble'
+import { Dock, MODULE_ICONS } from './ui/Dock'
+import type { ModuleId, ModuleInfo } from './modules/registry'
 
 export default function App() {
+  const [fontsReady, setFontsReady] = useState(false)
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState<ModuleId | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<ModuleInfo | null>(null)
+
+  // Canvas textures (nameplate, blueprint, cash) draw text, so wait for the fonts.
+  useEffect(() => {
+    Promise.all([
+      document.fonts.load('400 40px "Instrument Serif"'),
+      document.fonts.load('italic 400 40px "Instrument Serif"'),
+      document.fonts.load('600 20px "Geist Mono Variable"'),
+      document.fonts.load('400 16px "Geist Variable"'),
+    ])
+      .catch(() => {})
+      .then(() => setFontsReady(true))
+  }, [])
 
   useEffect(() => {
     if (!toast) return
-    const t = setTimeout(() => setToast(null), 2500)
+    const t = setTimeout(() => setToast(null), 2600)
     return () => clearTimeout(t)
   }, [toast])
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setActive(null)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setActive((a) => {
+        if (a === null) setOpen(false)
+        return null
+      })
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   const selectModule = (m: ModuleInfo) => {
-    if (m.ready) setActive(m.id)
-    else setToast(`${m.name}: offline, coming soon`)
+    setOpen(true)
+    if (m.ready) setActive((a) => (a === m.id ? null : m.id))
+    else setToast(m)
   }
 
+  const close = () => setActive(null)
+
+  const ToastIcon = toast ? MODULE_ICONS[toast.id] : Lock
+
   return (
-    <>
-      <Scene
-        open={open}
-        onToggle={() => {
-          setOpen((o) => !o)
-          setActive(null)
-        }}
-        activeModule={active}
-        onSelectModule={selectModule}
+    <div className="relative h-full w-full">
+      {fontsReady && (
+        <Scene
+          open={open}
+          onToggle={() => {
+            setOpen((o) => !o)
+            setActive(null)
+          }}
+          activeModule={active}
+          onSelectModule={selectModule}
+        />
+      )}
+
+      {/* fade in from black */}
+      <motion.div
+        className="pointer-events-none absolute inset-0 z-50 bg-ink"
+        initial={{ opacity: 1 }}
+        animate={{ opacity: fontsReady ? 0 : 1 }}
+        transition={{ duration: 1.6, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
       />
 
-      <div className="hud">
-        <h1>Operation: Suitcase</h1>
-        <p>{open ? 'Pick a tool from the case.' : 'Click the case to open it. Drag to look around.'}</p>
+      {/* title, centred above the case */}
+      <motion.header
+        className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center px-4 pt-[max(3vh,18px)]"
+        // the title bows out while the case is open and returns when it closes
+        animate={open ? { opacity: 0, y: -28, scale: 0.94, filter: 'blur(10px)' } : { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+        transition={open ? { duration: 0.5, ease: [0.4, 0, 0.2, 1] } : { type: 'spring', bounce: 0.15, duration: 0.9, delay: 0.35 }}
+      >
+        {/* soft dark pool behind the lockup so it reads over the lamp beam */}
+        <motion.div
+          aria-hidden
+          className="absolute left-1/2 top-[-60px] -z-10 h-[330px] w-[min(1200px,150vw)] -translate-x-1/2 bg-[radial-gradient(ellipse_50%_70%_at_50%_18%,rgba(5,6,8,0.86)_0%,rgba(5,6,8,0.6)_45%,rgba(5,6,8,0)_100%)]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.8 }}
+          transition={{ duration: 0.8 }}
+        />
+        <motion.div
+          initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          transition={{ delay: 0.5, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+          className="flex items-center gap-2.5 rounded-full border border-white/[0.09] bg-ink/60 py-1.5 pl-2.5 pr-3.5 font-mono text-[10px] uppercase tracking-[0.24em] text-paper/80 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.9)] backdrop-blur-md sm:text-[11px]"
+        >
+          <span className="size-1.5 animate-pulse rounded-full bg-laser shadow-[0_0_8px_rgba(255,61,74,0.9)]" />
+          <span>
+            RowdyHacks <span className="text-gold">·</span> Case file Nº 026
+          </span>
+        </motion.div>
+        <ShaderTitle className="mt-1 h-[clamp(68px,11.5vw,138px)] w-[min(94vw,1000px)] [filter:drop-shadow(0_1px_1px_rgba(0,0,0,0.95))_drop-shadow(0_6px_22px_rgba(0,0,0,0.8))]" />
+        <div className="flex items-center gap-3">
+          <span className="h-px w-6 bg-gradient-to-r from-transparent to-gold/70 sm:w-10" />
+          <Scramble
+            text="SIX TOOLS. ONE JOB. ZERO WITNESSES."
+            delay={1700}
+            className="whitespace-pre font-mono text-[10.5px] tracking-[0.26em] text-paper/90 [text-shadow:0_1px_10px_rgba(0,0,0,0.95)] sm:text-[13px]"
+          />
+          <span className="h-px w-6 bg-gradient-to-l from-transparent to-gold/70 sm:w-10" />
+        </div>
+      </motion.header>
+
+      {/* bottom: hint while closed, dock once open */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-4 pb-[max(3vh,16px)]">
+        <AnimatePresence mode="wait">
+          {!open ? (
+            <motion.div
+              key="hint"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16, filter: 'blur(6px)', transition: { duration: 0.25 } }}
+              transition={{ delay: 2.2, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <button
+                onClick={() => setOpen(true)}
+                className="pointer-events-auto flex items-center gap-2.5 rounded-full border border-white/[0.08] bg-ink-2/60 py-2 pl-3 pr-4 backdrop-blur-xl transition-colors hover:border-gold/40"
+              >
+                <MousePointerClick className="size-4 text-gold" strokeWidth={1.75} />
+                <motion.span
+                  className="bg-[length:200%_100%] bg-gradient-to-r from-paper/50 via-paper to-paper/50 bg-clip-text text-sm text-transparent"
+                  animate={{ backgroundPosition: ['200% center', '-200% center'] }}
+                  transition={{ duration: 3, ease: 'linear', repeat: Infinity }}
+                >
+                  Click the case to crack it open
+                </motion.span>
+              </button>
+            </motion.div>
+          ) : (
+            <Dock key="dock" active={active} onSelect={selectModule} />
+          )}
+        </AnimatePresence>
       </div>
 
-      {active === 'heistai' && <HeistAIPanel onClose={() => setActive(null)} />}
-      {active === 'alibi' && <AlibiPanel onClose={() => setActive(null)} />}
-      {toast && <div className="toast">{toast}</div>}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            key={toast.id}
+            initial={{ opacity: 0, y: 12, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            transition={{ type: 'spring', bounce: 0.3, duration: 0.5 }}
+            className="pointer-events-none absolute bottom-[calc(max(3vh,16px)+64px)] left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-2xl border border-white/[0.08] bg-ink-2/85 py-2.5 pl-2.5 pr-4 shadow-2xl backdrop-blur-xl"
+          >
+            <span className="flex size-8 items-center justify-center rounded-lg bg-white/[0.06] text-mute">
+              <ToastIcon className="size-4" strokeWidth={1.75} />
+            </span>
+            <span className="flex flex-col">
+              <span className="text-sm text-paper">{toast.name}</span>
+              <span className="text-xs text-mute">{toast.id === 'slot6' ? 'This slot is still empty' : 'Offline. Coming soon.'}</span>
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {active === 'voice' && <VoiceModulatorPanel onClose={() => setActive(null)} />}
-      {active === 'faceswap' && <FaceSwapPanel onClose={() => setActive(null)} />}
-      {active === 'fakeid' && <FakeIdPanel onClose={() => setActive(null)} />}
-    </>
+      <AnimatePresence mode="wait">
+        {active === 'voice' && <VoiceModulatorPanel key="voice" onClose={close} />}
+        {active === 'faceswap' && <FaceSwapPanel key="faceswap" onClose={close} />}
+        {active === 'heistai' && <HeistAIPanel key="heistai" onClose={close} />}
+        {active === 'alibi' && <AlibiPanel key="alibi" onClose={close} />}
+        {active === 'fakeid' && <FakeIdPanel key="fakeid" onClose={close} />}
+      </AnimatePresence>
+    </div>
   )
 }
