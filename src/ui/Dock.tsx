@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { Bot, FileText, IdCard, Mic, Plus, ScanFace, type LucideIcon } from 'lucide-react'
+import { Bot, FileText, IdCard, Mic, Radar, ScanFace, type LucideIcon } from 'lucide-react'
 import clsx from 'clsx'
 import { MODULES, type ModuleId, type ModuleInfo } from '../modules/registry'
 
@@ -9,7 +9,7 @@ export const MODULE_ICONS: Record<ModuleId, LucideIcon> = {
   heistai: Bot,
   alibi: FileText,
   fakeid: IdCard,
-  slot6: Plus,
+  watchtower: Radar,
 }
 
 const spring = { type: 'spring', bounce: 0, duration: 0.45 } as const
