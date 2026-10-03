@@ -44,7 +44,7 @@ The endpoints run in `npm run dev` and `npm run preview`. A plain static host (G
 | 3 | HeistAI assistant | Working (needs API key) |
 | 4 | Alibi Generator | Working (needs API key) |
 | 5 | ID Forge | Working |
-| 6 | Empty slot | Undecided |
+| 6 | Watchtower (radar + road map) | Working |
 
 ### Voice Modulator
 
@@ -74,6 +74,15 @@ A chat with an in-character heist mastermind. Replies stream in as they're writt
 ### Alibi Generator
 
 Describe the job, where you want to have been, and who vouches for you (or leave it all blank), pick a style, and get a case-file cover story: timeline, witnesses, receipts, weak spots, and the one line to say when asked. Uses structured output so the result always has the same shape. "Copy alibi" puts it on your clipboard as text.
+
+### Watchtower
+
+Watchtower has two coordinated, themed views:
+
+- **Radar** shows the bundled reference-station deck around the selected location.
+- **Road map** darkens public road tiles to match the green field-display palette. Click a destination, then build a normal driving route with distance and duration.
+
+It does not model response times, live emergency activity, units, or avoidance criteria. The station deck and public routing service are prototype data sources.
 
 ## Code map
 
