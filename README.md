@@ -46,7 +46,7 @@ The endpoints run in `npm run dev` and `npm run preview`. A plain static host (G
 | 3 | HeistAI assistant | Working (needs API key) |
 | 4 | Alibi Generator | Working (needs API key) |
 | 5 | ID Forge | Working |
-| 6 | Empty slot | Undecided |
+| 6 | Watchtower | Prototype (bundled demo stations; optional browser GPS) |
 
 ### Voice Modulator
 
@@ -77,6 +77,10 @@ A chat with an in-character heist mastermind. Replies stream in as they're writt
 
 Describe the job, where you want to have been, and who vouches for you (or leave it all blank), pick a style, and get a case-file cover story: timeline, witnesses, receipts, weak spots, and the one line to say when asked. Uses structured output so the result always has the same shape. "Copy alibi" puts it on your clipboard as text.
 
+### Watchtower
+
+A proximity-radar prototype that plots bundled San Antonio reference stations relative to a demo or browser-provided location. The station list and response ranges are illustrative only; this does not provide live dispatch, officer, vehicle, or arrival-time tracking, and must not be used for emergency decisions.
+
 ## Code map
 
 ```
@@ -88,9 +92,12 @@ src/
   lib/spring.ts                damped spring used by the 3D animations
   modules/registry.ts          module list (names, taglines, ready flag)
   modules/VoiceModulatorModule.tsx   3D bronze speaker
+  modules/WatchtowerModule.tsx      3D radar prop for the sixth slot
   modules/PlaceholderModules.tsx     3D props for HeistAI (orb) and Alibi (notebook)
+  radar/radarEngine.ts               demo stations, bearings, distances and estimate model
   audio/voiceEngine.ts         Web Audio voice changer
   ui/VoiceModulatorPanel.tsx   voice control panel
+  ui/WatchtowerPanel.tsx       proximity radar prototype
   ui/PanelShell.tsx            shared glass panel frame + form controls for every module
   ui/ShaderTitle.tsx           WebGL title effect
   ui/Dock.tsx                  bottom module toolbar

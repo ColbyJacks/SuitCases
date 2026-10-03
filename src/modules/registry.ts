@@ -1,4 +1,4 @@
-export type ModuleId = 'voice' | 'faceswap' | 'heistai' | 'alibi' | 'fakeid' | 'slot6'
+export type ModuleId = 'voice' | 'faceswap' | 'heistai' | 'alibi' | 'fakeid' | 'watchtower'
 
 export type ModuleInfo = {
   id: ModuleId
@@ -15,7 +15,7 @@ export const MODULES: ModuleInfo[] = [
   { id: 'heistai', name: 'HeistAI', code: 'AI-9', tagline: 'Your crew’s AI mastermind', ready: true },
   { id: 'alibi', name: 'Alibi Generator', code: 'ALB-4', tagline: 'A watertight backstory, on demand', ready: true },
   { id: 'fakeid', name: 'ID Forge', code: 'ID-5', tagline: 'Snap a photo, print a crew ID', ready: true },
-  { id: 'slot6', name: 'Empty Slot', code: '---', tagline: 'Sixth module to be decided', ready: false },
+  { id: 'watchtower', name: 'Watchtower', code: 'WCH-6', tagline: 'Public-safety proximity radar', ready: true },
 ]
 
 /** Slot number shown on panels ("Module 03"). */
