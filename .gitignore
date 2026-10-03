@@ -25,3 +25,9 @@ dist-ssr
 
 # copied from node_modules by scripts/copy-mediapipe.mjs
 public/mediapipe
+
+# RVC voice server: model weights and the Python venv stay local
+voice-server/models/*
+!voice-server/models/README.md
+voice-server/.venv
+__pycache__

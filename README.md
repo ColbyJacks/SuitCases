@@ -41,7 +41,7 @@ The endpoints run in `npm run dev` and `npm run preview`. A plain static host (G
 
 | Slot | Module | Status |
 | --- | --- | --- |
-| 1 | Voice Modulator (bronze speaker) | Working |
+| 1 | Voice Modulator (bronze speaker) | Working (voice clone needs `npm run voice`) |
 | 2 | Face-Swap Lens (camera lens) | Working |
 | 3 | HeistAI assistant | Working (needs API key) |
 | 4 | Alibi Generator | Working (needs API key) |
@@ -50,7 +50,17 @@ The endpoints run in `npm run dev` and `npm run preview`. A plain static host (G
 
 ### Voice Modulator
 
-Live mic processing with the Web Audio API, no server needed.
+Two modes, switched at the top of the panel.
+
+**Voice clone** turns your voice into someone else's with [RVC](https://github.com/daswer123/rvc-python). Go live, record a line, and it comes back in the voice you picked (pitch slider in semitones), ready to play or download as a `.wav`. It needs the local Python server in `voice-server/`:
+
+```bash
+npm run voice   # in a second terminal, next to npm run dev
+```
+
+Voices are `.pth` files in `voice-server/models/` (gitignored, add your own) and show up in the panel without code changes. Setup (Python 3.10, CPU or GPU torch) is in [voice-server/README.md](voice-server/README.md).
+
+**Quick disguise** is live mic processing with the Web Audio API, no server needed. The panel falls back to it automatically when the voice server isn't running.
 
 - Pitch shift runs in an AudioWorklet (`public/worklets/pitch-shifter.js`), a two-head delay-line shifter.
 - Robot is a 50 Hz ring modulator, Radio is a band-pass squeeze, Grit is a tanh waveshaper, Echo is a feedback delay.
@@ -96,6 +106,7 @@ src/
   modules/PlaceholderModules.tsx     3D props for HeistAI (orb) and Alibi (notebook)
   radar/radarEngine.ts               demo stations, bearings, distances and estimate model
   audio/voiceEngine.ts         Web Audio voice changer
+  audio/voiceClone.ts          browser calls to /api/voice (RVC server), WAV encoding
   ui/VoiceModulatorPanel.tsx   voice control panel
   ui/WatchtowerPanel.tsx       proximity radar prototype
   ui/PanelShell.tsx            shared glass panel frame + form controls for every module
@@ -113,6 +124,9 @@ src/
   ui/FakeIdPanel.tsx           ID Forge panel (camera, countdown, fields, download)
 server/
   heistApi.ts                  Vite plugin: Claude endpoints (reads ANTHROPIC_API_KEY)
+voice-server/
+  server.py                    FastAPI + RVC voice clone, proxied by Vite at /api/voice
+  models/                      .pth voice models (gitignored)
 ```
 
 ### Adding a module

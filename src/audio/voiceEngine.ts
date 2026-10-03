@@ -56,6 +56,7 @@ type Graph = {
   analyser: AnalyserNode
   monitor: GainNode
   recordDest: MediaStreamAudioDestinationNode
+  rawDest: MediaStreamAudioDestinationNode
 }
 
 /**
@@ -64,6 +65,7 @@ type Graph = {
  * mic → pitch shift → (dry | ring mod) → drive → band filters → echo → master
  *   master → analyser → monitor → speakers
  *   master → recorder stream
+ *   mic → raw recorder stream (input for the RVC voice clone)
  */
 class VoiceEngine {
   private graph: Graph | null = null
@@ -116,8 +118,10 @@ class VoiceEngine {
     analyser.fftSize = 2048
     const monitor = ctx.createGain()
     const recordDest = ctx.createMediaStreamDestination()
+    const rawDest = ctx.createMediaStreamDestination()
 
     mic.connect(pitch)
+    mic.connect(rawDest)
     pitch.connect(dry).connect(mix)
     pitch.connect(ring).connect(ringOut).connect(mix)
     mix.connect(shaper).connect(highpass).connect(lowpass).connect(echoIn)
@@ -130,7 +134,7 @@ class VoiceEngine {
 
     this.graph = {
       ctx, stream, pitch, dry, ringOut, shaper, highpass, lowpass,
-      delay, feedback, echoWet, master, analyser, monitor, recordDest,
+      delay, feedback, echoWet, master, analyser, monitor, recordDest, rawDest,
     }
     this.apply()
   }
@@ -167,10 +171,11 @@ class VoiceEngine {
     return Math.min(1, Math.sqrt(sum / this.levelBuf.length) * 4)
   }
 
-  startRecording() {
+  /** Records the disguised output, or with raw: true the untouched mic (what RVC wants). */
+  startRecording({ raw = false } = {}) {
     if (!this.graph || this.recorder) return
     this.chunks = []
-    this.recorder = new MediaRecorder(this.graph.recordDest.stream)
+    this.recorder = new MediaRecorder((raw ? this.graph.rawDest : this.graph.recordDest).stream)
     this.recorder.ondataavailable = (e) => e.data.size && this.chunks.push(e.data)
     this.recorder.start()
   }
