@@ -9,6 +9,7 @@ import {
   FlipHorizontal2,
   ImagePlus,
   Loader2,
+  Paintbrush,
   ScanFace,
   ShieldCheck,
   Spline,
@@ -16,6 +17,17 @@ import {
 } from 'lucide-react'
 import { DEFAULT_FACE_PARAMS, faceSwapEngine, type FaceSwapParams } from '../vision/faceSwapEngine'
 import { Button, ErrorNote, Note, PanelShell, Section, Slider, Toggle, deviceError } from './PanelShell'
+
+const HAIR_SWATCHES = [
+  { name: 'Platinum', color: '#e8dcc0' },
+  { name: 'Honey', color: '#d9a55b' },
+  { name: 'Copper', color: '#c2582b' },
+  { name: 'Cherry', color: '#b0213a' },
+  { name: 'Rose', color: '#e88aa8' },
+  { name: 'Violet', color: '#7b4fd6' },
+  { name: 'Electric', color: '#2f7bff' },
+  { name: 'Mint', color: '#4fd1a5' },
+]
 
 function pct(v: number) {
   return `${Math.round(v * 100)}%`
@@ -252,7 +264,7 @@ export function FaceSwapPanel({ onClose }: { onClose: () => void }) {
           <Slider id="fs-opacity" label="Mask" value={params.opacity} min={0} max={1} format={pct} onChange={(v) => setParams({ ...params, opacity: v })} />
           <Slider
             id="fs-color"
-            label="Skin match"
+            label="Light match"
             value={params.colorMatch}
             min={0}
             max={1}
@@ -264,6 +276,77 @@ export function FaceSwapPanel({ onClose }: { onClose: () => void }) {
           <Toggle label="Mirror" icon={FlipHorizontal2} checked={params.mirror} onChange={(v) => setParams({ ...params, mirror: v })} />
           <Toggle label="Show mesh" icon={Spline} checked={params.showMesh} onChange={(v) => setParams({ ...params, showMesh: v })} />
         </div>
+      </Section>
+
+      <Section
+        label="Hair dye"
+        aside={
+          params.hair && e.hairStatus === 'loading' ? (
+            <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-gold">
+              <Loader2 className="size-3 animate-spin" />
+              Loading
+            </span>
+          ) : undefined
+        }
+      >
+        <Toggle
+          label="Dye my hair"
+          hint={e.running ? undefined : 'Turn the camera on'}
+          icon={Paintbrush}
+          checked={params.hair}
+          onChange={(v) => setParams({ ...params, hair: v })}
+        />
+        <AnimatePresence initial={false}>
+          {params.hair && (
+            <motion.div
+              key="hair"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex flex-col gap-3 overflow-hidden"
+            >
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {HAIR_SWATCHES.map((s) => (
+                  <button
+                    key={s.color}
+                    onClick={() => setParams({ ...params, hairColor: s.color })}
+                    aria-label={s.name}
+                    title={s.name}
+                    className={clsx(
+                      'size-7 rounded-full border transition-[transform,box-shadow] hover:scale-110',
+                      params.hairColor === s.color ? 'border-paper shadow-[0_0_0_2px_rgba(227,181,99,0.8)]' : 'border-white/15',
+                    )}
+                    style={{ background: s.color }}
+                  />
+                ))}
+                <label
+                  title="Custom colour"
+                  className={clsx(
+                    'relative flex size-7 cursor-pointer items-center justify-center overflow-hidden rounded-full border bg-[conic-gradient(#f55,#fd5,#5f8,#5df,#85f,#f5d,#f55)] transition-transform hover:scale-110',
+                    HAIR_SWATCHES.some((s) => s.color === params.hairColor) ? 'border-white/15' : 'border-paper shadow-[0_0_0_2px_rgba(227,181,99,0.8)]',
+                  )}
+                >
+                  <input
+                    type="color"
+                    value={params.hairColor}
+                    onChange={(ev) => setParams({ ...params, hairColor: ev.target.value })}
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                  />
+                </label>
+              </div>
+              <Slider
+                id="fs-hair"
+                label="Strength"
+                value={params.hairStrength}
+                min={0}
+                max={1}
+                format={pct}
+                onChange={(v) => setParams({ ...params, hairStrength: v })}
+              />
+              <AnimatePresence>{e.hairError && <ErrorNote key="hair-err">{e.hairError}</ErrorNote>}</AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </Section>
 
       <AnimatePresence>
