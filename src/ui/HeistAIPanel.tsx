@@ -1,102 +1,138 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import clsx from 'clsx'
-import { ArrowUp, Bot, Briefcase, Landmark, Mic, RotateCcw, Siren, Square, Users, type LucideIcon } from 'lucide-react'
+import { ChevronDown, Keyboard, Mic, RotateCcw, Send, Square } from 'lucide-react'
 import { streamHeistAI, type ChatMessage } from '../ai/heistApi'
 import { alfredStatus, resetAlfred, Speaker, talkToAlfred } from '../ai/alfred'
 import { toWav } from '../audio/voiceClone'
 import { deviceError, ErrorNote, PanelShell } from './PanelShell'
 
-const STARTERS: { icon: LucideIcon; text: string }[] = [
-  { icon: Landmark, text: 'Plan a museum heist for a crew of four' },
-  { icon: Users, text: 'Who do I need on my crew?' },
-  { icon: Siren, text: 'We got spotted. What’s the escape plan?' },
-  { icon: Briefcase, text: 'Which gadget in this case should I use first?' },
-]
+const STARTERS = ['Plan a museum heist for a crew of four', 'Who do I need on my crew?', 'We got spotted. What’s the escape plan?']
 
-const GREETING: ChatMessage = {
-  role: 'assistant',
-  content: 'HeistAI online. Tell me the mark and I’ll draw up the plan. Or pick a starter below.',
-}
-
-const VOICE_GREETING: ChatMessage = {
-  role: 'assistant',
-  content: 'Alfred here, on the line. Hit the mic and talk to me, or type if you’d rather keep it quiet.',
-}
+/** One exchange: what you said and what Alfred said back, sentence by sentence. */
+type Turn = { you: string; alfred: string[] }
 
 // Kept at module level so the conversation survives closing and reopening the panel.
-let savedChat: ChatMessage[] = []
+let savedTurns: Turn[] = []
 let session = crypto.randomUUID()
 
 type Voice = 'checking' | 'loading' | 'online' | 'offline'
 type Phase = 'idle' | 'listening' | 'thinking' | 'speaking'
 
-function Typing({ dark }: { dark?: boolean }) {
-  return (
-    <span className="flex h-5 items-center gap-1" aria-label="HeistAI is typing">
-      {[0, 1, 2].map((i) => (
-        <motion.span
-          key={i}
-          className={clsx('size-1.5 rounded-full', dark ? 'bg-ink' : 'bg-gold')}
-          animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
-          transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }}
-        />
-      ))}
-    </span>
-  )
-}
+/** The text chat fallback still wants a plain message history. */
+const toHistory = (turns: Turn[]): ChatMessage[] =>
+  turns.flatMap((t) => [
+    { role: 'user' as const, content: t.you },
+    { role: 'assistant' as const, content: t.alfred.join(' ') },
+  ])
 
-function Bubble({ message }: { message: ChatMessage }) {
-  const mine = message.role === 'user'
+/** Alfred's presence: a glowing orb that breathes when idle and swells with whoever is talking. */
+function Orb({ phase, voice, level }: { phase: Phase; voice: Voice; level: React.RefObject<number> }) {
+  const core = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let raf = 0
+    let smooth = 0
+    const tick = () => {
+      smooth += (level.current - smooth) * 0.25
+      core.current?.style.setProperty('--lvl', smooth.toFixed(3))
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [level])
+
+  const down = voice === 'offline'
+  const listening = phase === 'listening'
+  const active = listening || phase === 'speaking'
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
-      className={clsx('flex gap-2.5', mine ? 'justify-end' : 'justify-start')}
-    >
-      {!mine && (
-        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border border-gold/30 bg-gold/10 text-gold">
-          <Bot className="size-3.5" strokeWidth={2} />
-        </span>
+    <div className="relative flex size-44 items-center justify-center">
+      {/* ripples while someone is talking */}
+      {active &&
+        [0, 1, 2].map((i) => (
+          <motion.span
+            key={`${phase}-${i}`}
+            className={clsx('absolute inset-6 rounded-full border', listening ? 'border-laser/50' : 'border-gold/50')}
+            initial={{ scale: 1, opacity: 0.7 }}
+            animate={{ scale: 1.9, opacity: 0 }}
+            transition={{ duration: 2.4, repeat: Infinity, delay: i * 0.8, ease: 'easeOut' }}
+          />
+        ))}
+      {/* spinning halo while Alfred thinks */}
+      {phase === 'thinking' && (
+        <motion.span
+          className="absolute inset-3 rounded-full"
+          style={{ background: 'conic-gradient(from 0deg, transparent 0deg, rgba(227,181,99,0.65) 90deg, transparent 180deg)' }}
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: 'linear' }}
+        />
       )}
-      <div
-        className={clsx(
-          'max-w-[85%] whitespace-pre-wrap px-3.5 py-2.5 text-[13.5px] leading-relaxed [overflow-wrap:anywhere]',
-          mine
-            ? 'rounded-2xl rounded-tr-md bg-gradient-to-b from-[#f3d493] to-gold text-ink shadow-[0_8px_24px_-12px_rgba(227,181,99,0.7)]'
-            : 'rounded-2xl rounded-tl-md border border-white/[0.06] bg-white/[0.035] text-paper/90',
-        )}
+      <motion.div
+        animate={phase === 'idle' && !down ? { scale: [1, 1.04, 1] } : { scale: 1 }}
+        transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
       >
-        {message.content || <Typing dark={mine} />}
+      <div
+        ref={core}
+        className={clsx(
+          'relative size-32 rounded-full transition-[filter,background] duration-500 [transform:scale(calc(1+var(--lvl,0)*0.22))]',
+          down && 'grayscale',
+        )}
+        style={{
+          background: listening
+            ? 'radial-gradient(circle at 35% 30%, #ffd2d5 0%, #ff3d4a 38%, #5a0d13 78%, #1a0406 100%)'
+            : 'radial-gradient(circle at 35% 30%, #fff1cf 0%, #e3b563 36%, #6b4c1c 76%, #1a1206 100%)',
+          boxShadow: listening
+            ? '0 0 calc(40px + var(--lvl,0) * 80px) rgba(255,61,74,0.55), inset 0 -12px 30px rgba(0,0,0,0.5)'
+            : `0 0 calc(${down ? 10 : 36}px + var(--lvl,0) * 90px) rgba(227,181,99,${down ? 0.15 : 0.5}), inset 0 -12px 30px rgba(0,0,0,0.5)`,
+        }}
+      >
+        <span className="absolute left-[22%] top-[16%] h-[22%] w-[34%] rotate-[-25deg] rounded-full bg-white/40 blur-md" />
       </div>
-    </motion.div>
+      </motion.div>
+    </div>
   )
 }
 
 export function HeistAIPanel({ onClose }: { onClose: () => void }) {
-  const [messages, setMessages] = useState<ChatMessage[]>(savedChat)
+  const [turns, setTurns] = useState<Turn[]>(savedTurns)
   const [draft, setDraft] = useState('')
+  const [typing, setTyping] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [voice, setVoice] = useState<Voice>('checking')
-  const [phase, setPhase] = useState<Phase>('idle')
+  const [rawPhase, setPhase] = useState<Phase>('idle')
+  // Between sentences the speaker goes quiet while Alfred is still working on the next one.
+  const phase: Phase = rawPhase === 'idle' && busy ? 'thinking' : rawPhase
+  const [playingIndex, setPlayingIndex] = useState(-1)
+  const [elapsed, setElapsed] = useState(0)
+  const [showLog, setShowLog] = useState(false)
   const abort = useRef<AbortController | null>(null)
-  const log = useRef<HTMLDivElement>(null)
-  const input = useRef<HTMLTextAreaElement>(null)
   const recorder = useRef<MediaRecorder | null>(null)
+  const micLevel = useRef<(() => number) | null>(null)
+  const level = useRef(0)
   const speaker = useRef<Speaker | null>(null)
   speaker.current ??= new Speaker()
+  const input = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    savedChat = messages
-    const el = log.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [messages, error])
+    savedTurns = turns
+  }, [turns])
+
+  // Feed the orb whichever voice is live: yours while recording, Alfred's while he talks.
+  useEffect(() => {
+    let raf = 0
+    const tick = () => {
+      level.current = micLevel.current ? micLevel.current() : speaker.current!.level()
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
   useEffect(() => {
     const s = speaker.current!
     s.onChange = (speaking) => setPhase((p) => (speaking ? 'speaking' : p === 'speaking' ? 'idle' : p))
+    s.onSentence = setPlayingIndex
     return () => {
       abort.current?.abort()
       s.stop()
@@ -121,74 +157,119 @@ export function HeistAIPanel({ onClose }: { onClose: () => void }) {
     }
   }, [])
 
+  // CPU speech synthesis can take a while, so show how long Alfred has been thinking.
+  useEffect(() => {
+    if (phase !== 'thinking') return
+    const started = Date.now()
+    const id = window.setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000)
+    return () => clearInterval(id)
+  }, [phase])
+
   const voiceOn = voice === 'online'
 
-  const fail = (e: unknown, ctrl: AbortController) => {
-    if (ctrl.signal.aborted) return false
-    setError(e instanceof Error ? e.message : String(e))
-    // Drop the empty assistant bubble (and an unheard question) so the log stays clean.
-    setMessages((prev) => (prev[prev.length - 1]?.content ? prev : prev.slice(0, -2)))
-    return true
-  }
+  const patchLast = (update: (t: Turn) => Turn) =>
+    setTurns((prev) => [...prev.slice(0, -1), update(prev[prev.length - 1])])
 
-  /** One spoken turn with Alfred: his sentences appear and play as they arrive. */
-  const talk = async (input: { audio: Blob } | { text: string }) => {
-    const heard = 'text' in input ? input.text : ''
-    setMessages((prev) => [...prev, { role: 'user', content: heard }, { role: 'assistant', content: '' }])
-    setDraft('')
+  const begin = (you: string) => {
+    setTurns((prev) => [...prev, { you, alfred: [] }])
     setError(null)
     setBusy(true)
     setPhase('thinking')
-
+    setElapsed(0)
+    setPlayingIndex(-1)
     const ctrl = new AbortController()
     abort.current = ctrl
-    const patch = (fromEnd: number, update: (content: string) => string) =>
-      setMessages((prev) => {
-        const next = prev.slice()
-        const i = next.length - fromEnd
-        next[i] = { ...next[i], content: update(next[i].content) }
-        return next
-      })
+    return ctrl
+  }
 
+  const fail = (e: unknown, ctrl: AbortController) => {
+    if (ctrl.signal.aborted) return
+    setError(e instanceof Error ? e.message : String(e))
+    // Drop a turn Alfred never answered.
+    setTurns((prev) => (prev[prev.length - 1]?.alfred.length ? prev : prev.slice(0, -1)))
+  }
+
+  const finish = () => {
+    setBusy(false)
+    setPhase((p) => (p === 'thinking' ? (speaker.current!.speaking ? 'speaking' : 'idle') : p))
+  }
+
+  /** A spoken turn: what Alfred heard shows up first, then each sentence plays as it arrives. */
+  const talk = async (q: { audio: Blob } | { text: string }) => {
+    const ctrl = begin('text' in q ? q.text : '')
+    let count = 0
     try {
       await talkToAlfred(
-        input,
+        q,
         session,
         (e) => {
-          if (e.type === 'user') patch(2, () => e.text || '(silence)')
+          if (e.type === 'user') patchLast((t) => ({ ...t, you: e.text || '(silence)' }))
           if (e.type === 'sentence') {
-            patch(1, (c) => (c ? `${c} ${e.text}` : e.text))
-            speaker.current!.enqueue(e.audio)
+            patchLast((t) => ({ ...t, alfred: [...t.alfred, e.text] }))
+            speaker.current!.enqueue(e.audio, count++)
           }
         },
         ctrl.signal,
       )
     } catch (e) {
-      if (fail(e, ctrl) && 'text' in input) setDraft(input.text)
+      fail(e, ctrl)
     } finally {
-      setBusy(false)
-      setPhase((p) => (p === 'thinking' ? (speaker.current!.speaking ? 'speaking' : 'idle') : p))
+      finish()
     }
   }
 
-  const toggleMic = async () => {
-    const rec = recorder.current
-    if (rec) {
-      rec.stop()
-      return
+  /** Without the voice server, Alfred can still answer in text through the Claude endpoint. */
+  const textOnly = async (content: string) => {
+    const history = [...toHistory(turns), { role: 'user' as const, content }]
+    const ctrl = begin(content)
+    try {
+      await streamHeistAI(history, (chunk) => patchLast((t) => ({ ...t, alfred: [(t.alfred[0] ?? '') + chunk] })), ctrl.signal)
+    } catch (e) {
+      fail(e, ctrl)
+    } finally {
+      finish()
     }
+  }
+
+  const send = (text: string) => {
+    const content = text.trim()
+    if (!content || busy || phase === 'listening') return
+    setDraft('')
+    speaker.current!.prime()
+    speaker.current!.stop()
+    void (voiceOn ? talk({ text: content }) : textOnly(content))
+  }
+
+  const startListening = async () => {
+    if (recorder.current || busy || !voiceOn) return
     setError(null)
+    speaker.current!.prime()
     speaker.current!.stop()
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+      // Tap the mic for a live level so the orb reacts to your voice.
+      const ctx = new AudioContext()
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 1024
+      ctx.createMediaStreamSource(stream).connect(analyser)
+      const buf = new Float32Array(analyser.fftSize)
+      micLevel.current = () => {
+        analyser.getFloatTimeDomainData(buf)
+        let sum = 0
+        for (const s of buf) sum += s * s
+        return Math.min(1, Math.sqrt(sum / buf.length) * 6)
+      }
+
       const chunks: Blob[] = []
-      const next = new MediaRecorder(stream)
-      next.ondataavailable = (e) => e.data.size && chunks.push(e.data)
-      next.onstop = async () => {
+      const rec = new MediaRecorder(stream)
+      rec.ondataavailable = (e) => e.data.size && chunks.push(e.data)
+      rec.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop())
+        void ctx.close()
+        micLevel.current = null
         recorder.current = null
         setPhase('idle')
-        const blob = new Blob(chunks, { type: next.mimeType })
+        const blob = new Blob(chunks, { type: rec.mimeType })
         if (!blob.size) return
         try {
           await talk({ audio: await toWav(blob) })
@@ -196,45 +277,16 @@ export function HeistAIPanel({ onClose }: { onClose: () => void }) {
           setError(e instanceof Error ? e.message : String(e))
         }
       }
-      next.start()
-      recorder.current = next
+      rec.start()
+      recorder.current = rec
       setPhase('listening')
     } catch (e) {
       setError(deviceError(e, 'microphone'))
     }
   }
 
-  const send = async (text: string) => {
-    const content = text.trim()
-    if (!content || busy) return
-    if (voiceOn) return talk({ text: content })
-    const history: ChatMessage[] = [...messages, { role: 'user', content }]
-    setMessages([...history, { role: 'assistant', content: '' }])
-    setDraft('')
-    setError(null)
-    setBusy(true)
-
-    const ctrl = new AbortController()
-    abort.current = ctrl
-    try {
-      await streamHeistAI(
-        history,
-        (chunk) =>
-          setMessages((prev) => {
-            const next = prev.slice()
-            const last = next[next.length - 1]
-            next[next.length - 1] = { ...last, content: last.content + chunk }
-            return next
-          }),
-        ctrl.signal,
-      )
-    } catch (e) {
-      // Put the question back in the box.
-      if (fail(e, ctrl)) setDraft(content)
-    } finally {
-      setBusy(false)
-    }
-  }
+  const stopListening = () => recorder.current?.stop()
+  const toggleMic = () => (recorder.current ? stopListening() : void startListening())
 
   const stop = () => {
     abort.current?.abort()
@@ -245,20 +297,66 @@ export function HeistAIPanel({ onClose }: { onClose: () => void }) {
     stop()
     resetAlfred(session)
     session = crypto.randomUUID()
-    setMessages([])
+    setTurns([])
     setError(null)
-    input.current?.focus()
   }
 
+  // Hold Space to talk, like a walkie-talkie (ignored while typing).
+  const spaceHeld = useRef(false)
+  const toggleRef = useRef({ startListening, stopListening })
+  useEffect(() => {
+    toggleRef.current = { startListening, stopListening }
+  })
+  useEffect(() => {
+    const typingIn = (e: KeyboardEvent) => e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat || typingIn(e)) return
+      e.preventDefault()
+      spaceHeld.current = true
+      void toggleRef.current.startListening()
+    }
+    const up = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || !spaceHeld.current) return
+      spaceHeld.current = false
+      toggleRef.current.stopListening()
+    }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+    }
+  }, [])
+
+  const current = turns[turns.length - 1]
+  const past = turns.slice(0, -1)
   const working = busy || phase === 'speaking'
+
   const status =
     phase === 'listening'
       ? { live: true, label: 'Listening', tone: 'red' as const }
       : phase === 'speaking'
         ? { live: true, label: 'Speaking', tone: 'gold' as const }
         : busy
-          ? { live: true, label: voiceOn ? 'Thinking' : 'Plotting', tone: 'gold' as const }
-          : { live: false, label: voiceOn ? 'On the line' : 'Ready' }
+          ? { live: true, label: 'Thinking', tone: 'gold' as const }
+          : voiceOn
+            ? { live: true, label: 'On the line', tone: 'green' as const }
+            : { live: false, label: voice === 'offline' ? 'Line down' : 'Connecting' }
+
+  const caption =
+    phase === 'listening'
+      ? 'Listening… tap again when you’re done'
+      : phase === 'thinking'
+        ? `Alfred is thinking${elapsed >= 3 ? ` · ${elapsed}s` : '…'}`
+        : phase === 'speaking'
+          ? 'Alfred is speaking'
+          : voice === 'online'
+            ? 'Tap the mic or hold Space to talk'
+            : voice === 'loading'
+              ? 'Alfred is warming up his voice…'
+              : voice === 'offline'
+                ? 'Voice line is down'
+                : 'Dialing Alfred…'
 
   return (
     <PanelShell
@@ -270,163 +368,200 @@ export function HeistAIPanel({ onClose }: { onClose: () => void }) {
       }
       status={status}
       onClose={onClose}
-      bodyRef={log}
-      bodyClassName="gap-4"
+      bodyClassName="items-center gap-5"
       footer={
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            void send(draft)
-          }}
-          className="flex flex-col gap-2"
-        >
-          <div className="flex items-end gap-2 rounded-2xl border border-white/[0.08] bg-black/30 p-1.5 pl-3.5 transition-colors focus-within:border-gold/50">
-            <textarea
-              ref={input}
-              value={draft}
-              rows={1}
-              placeholder={phase === 'listening' ? 'Listening… tap the mic again to send' : voiceOn ? 'Talk or type to Alfred…' : 'Ask the mastermind…'}
-              aria-label="Message HeistAI"
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                e.stopPropagation()
-                if (e.key === 'Enter' && !e.shiftKey) {
+        <div className="flex flex-col gap-2.5">
+          <AnimatePresence initial={false} mode="popLayout">
+            {typing || !voiceOn ? (
+              <motion.form
+                key="type"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                onSubmit={(e) => {
                   e.preventDefault()
-                  void send(draft)
-                }
-              }}
-              className="max-h-36 min-h-9 flex-1 resize-none bg-transparent py-2 text-sm leading-5 text-paper outline-none [field-sizing:content] placeholder:text-mute/60 focus-visible:outline-none"
-            />
-            <AnimatePresence mode="popLayout" initial={false}>
-              {phase === 'listening' ? (
-                <motion.button
-                  key="listening"
-                  type="button"
-                  onClick={toggleMic}
-                  aria-label="Stop recording and send"
-                  initial={{ scale: 0.6, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.6, opacity: 0 }}
-                  whileTap={{ scale: 0.92 }}
-                  className="relative flex size-9 shrink-0 items-center justify-center rounded-xl bg-laser text-white shadow-[0_6px_18px_-6px_rgba(255,61,74,0.8)]"
-                >
-                  <span className="absolute inset-0 animate-ping rounded-xl bg-laser/40" />
-                  <Mic className="relative size-4" strokeWidth={2.25} />
-                </motion.button>
-              ) : working ? (
-                <motion.button
-                  key="stop"
-                  type="button"
-                  onClick={stop}
-                  aria-label="Stop"
-                  initial={{ scale: 0.6, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.6, opacity: 0 }}
-                  className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-paper transition-colors hover:bg-white/10"
-                >
-                  <Square className="size-3.5 fill-current" />
-                </motion.button>
-              ) : voiceOn && !draft.trim() ? (
-                <motion.button
-                  key="mic"
-                  type="button"
-                  onClick={toggleMic}
-                  aria-label="Talk to Alfred"
-                  initial={{ scale: 0.6, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.6, opacity: 0 }}
-                  whileTap={{ scale: 0.92 }}
-                  className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-[#f3d493] to-gold text-ink shadow-[0_6px_18px_-6px_rgba(227,181,99,0.8)] transition-[filter] hover:brightness-105"
-                >
-                  <Mic className="size-4" strokeWidth={2.25} />
-                </motion.button>
-              ) : (
-                <motion.button
-                  key="send"
+                  send(draft)
+                }}
+                className="flex items-center gap-2 rounded-2xl border border-white/[0.08] bg-black/30 p-1.5 pl-3.5 transition-colors focus-within:border-gold/50"
+              >
+                <input
+                  ref={input}
+                  value={draft}
+                  autoFocus={typing}
+                  placeholder={voiceOn ? 'Type to Alfred, he’ll answer out loud…' : 'Type to Alfred…'}
+                  aria-label="Message Alfred"
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  className="h-9 min-w-0 flex-1 bg-transparent text-sm text-paper outline-none placeholder:text-mute/60"
+                />
+                {voiceOn && (
+                  <button
+                    type="button"
+                    onClick={() => setTyping(false)}
+                    aria-label="Back to voice"
+                    className="flex size-9 shrink-0 items-center justify-center rounded-xl text-mute transition-colors hover:bg-white/[0.06] hover:text-paper"
+                  >
+                    <Mic className="size-4" />
+                  </button>
+                )}
+                <button
                   type="submit"
-                  disabled={!draft.trim()}
+                  disabled={!draft.trim() || busy}
                   aria-label="Send"
-                  initial={{ scale: 0.6, opacity: 0 }}
-                  animate={{ scale: 1, opacity: draft.trim() ? 1 : 0.3 }}
-                  exit={{ scale: 0.6, opacity: 0 }}
-                  whileTap={{ scale: 0.92 }}
-                  className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-[#f3d493] to-gold text-ink shadow-[0_6px_18px_-6px_rgba(227,181,99,0.8)] transition-[opacity,filter] hover:brightness-105 disabled:shadow-none"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-[#f3d493] to-gold text-ink transition-opacity disabled:opacity-30"
                 >
-                  <ArrowUp className="size-4" strokeWidth={2.25} />
-                </motion.button>
-              )}
-            </AnimatePresence>
-          </div>
-          <div className="flex h-6 items-center justify-between px-1 text-[11px] text-mute">
-            <span>
-              {voiceOn ? (
-                <>
-                  Tap <Mic className="mb-px inline size-3 text-gold" /> to talk, or type and press <kbd className="font-mono text-paper/60">Enter</kbd>
-                </>
-              ) : voice === 'loading' ? (
-                'Alfred is warming up his voice…'
-              ) : voice === 'offline' ? (
-                <>
-                  Text only. Run <kbd className="font-mono text-paper/60">npm run heistai</kbd> to talk to Alfred
-                </>
-              ) : (
-                <>
-                  <kbd className="font-mono text-paper/60">Enter</kbd> to send, <kbd className="font-mono text-paper/60">Shift+Enter</kbd> for a new line
-                </>
-              )}
-            </span>
-            <AnimatePresence>
-              {messages.length > 0 && !working && phase !== 'listening' && (
-                <motion.button
+                  <Send className="size-4" strokeWidth={2.25} />
+                </button>
+              </motion.form>
+            ) : (
+              <motion.div key="voice" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} className="flex items-center gap-2">
+                <button
                   type="button"
-                  initial={{ opacity: 0, x: 6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 6 }}
-                  onClick={reset}
-                  className="flex items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors hover:bg-white/[0.05] hover:text-paper"
+                  onClick={() => setTyping(true)}
+                  aria-label="Type instead"
+                  className="flex size-12 shrink-0 items-center justify-center rounded-2xl border border-white/[0.08] text-mute transition-colors hover:bg-white/[0.05] hover:text-paper"
                 >
-                  <RotateCcw className="size-3" />
-                  New plan
-                </motion.button>
-              )}
-            </AnimatePresence>
-          </div>
-        </form>
+                  <Keyboard className="size-4" />
+                </button>
+                {working ? (
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.97 }}
+                    onClick={stop}
+                    className="flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] text-sm font-medium text-paper transition-colors hover:bg-white/10"
+                  >
+                    <Square className="size-3.5 fill-current" />
+                    {phase === 'speaking' ? 'Stop Alfred' : 'Cancel'}
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.97 }}
+                    onClick={toggleMic}
+                    className={clsx(
+                      'flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl text-sm font-semibold transition-[filter,background]',
+                      phase === 'listening'
+                        ? 'bg-laser text-white shadow-[0_8px_24px_-8px_rgba(255,61,74,0.9)]'
+                        : 'bg-gradient-to-b from-[#f3d493] to-gold text-ink shadow-[0_8px_24px_-8px_rgba(227,181,99,0.9)] hover:brightness-105',
+                    )}
+                  >
+                    <Mic className={clsx('size-4', phase === 'listening' && 'animate-pulse')} strokeWidth={2.25} />
+                    {phase === 'listening' ? 'Send to Alfred' : 'Talk to Alfred'}
+                  </motion.button>
+                )}
+                <button
+                  type="button"
+                  onClick={reset}
+                  disabled={turns.length === 0 || working}
+                  aria-label="New plan"
+                  title="New plan"
+                  className="flex size-12 shrink-0 items-center justify-center rounded-2xl border border-white/[0.08] text-mute transition-colors hover:bg-white/[0.05] hover:text-paper disabled:opacity-30"
+                >
+                  <RotateCcw className="size-4" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       }
     >
-      <div className="flex flex-col gap-4" aria-live="polite">
-        {[voiceOn ? VOICE_GREETING : GREETING, ...messages].map((m, i) => (
-          <Bubble key={i} message={m} />
-        ))}
+      <div className="flex flex-col items-center gap-3 pt-2">
+        <Orb phase={phase} voice={voice} level={level} />
+        <p className="font-mono text-[10.5px] uppercase tracking-[0.2em] text-mute" aria-live="polite">
+          {caption}
+        </p>
       </div>
 
-      <AnimatePresence>
-        {messages.length === 0 && (
+      {voice === 'offline' && (
+        <p className="max-w-[300px] text-center text-[12.5px] leading-relaxed text-mute">
+          Run <kbd className="font-mono text-paper/70">npm run heistai</kbd> to talk to Alfred out loud. Until then he’ll answer in text.
+        </p>
+      )}
+
+      {/* the latest exchange, shown as subtitles */}
+      <AnimatePresence mode="wait">
+        {current ? (
           <motion.div
-            key="starters"
-            className="mt-auto grid grid-cols-2 gap-2"
-            initial="hidden"
-            animate="show"
-            exit={{ opacity: 0, y: 8, transition: { duration: 0.2 } }}
-            variants={{ show: { transition: { staggerChildren: 0.06, delayChildren: 0.25 } } }}
+            key={turns.length}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex w-full flex-col gap-3"
           >
-            {STARTERS.map(({ icon: Icon, text }) => (
-              <motion.button
+            <div className="flex flex-col gap-1">
+              <span className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-mute">You</span>
+              <p className="text-[13.5px] leading-relaxed text-paper/70">{current.you || <span className="italic text-mute">Transcribing…</span>}</p>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-gold">Alfred</span>
+              <p className="font-display text-[20px] leading-snug text-paper">
+                {current.alfred.length === 0 ? (
+                  <span className="text-mute/70">…</span>
+                ) : (
+                  current.alfred.map((s, i) => (
+                    <span
+                      key={i}
+                      className={clsx(
+                        'transition-colors duration-300',
+                        phase === 'speaking' && playingIndex >= 0 && (i === playingIndex ? 'text-gold' : i > playingIndex ? 'text-paper/45' : 'text-paper'),
+                      )}
+                    >
+                      {s}{' '}
+                    </span>
+                  ))
+                )}
+              </p>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div key="starters" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex w-full flex-col items-center gap-2">
+            <span className="font-mono text-[9.5px] uppercase tracking-[0.22em] text-mute">Try asking</span>
+            {STARTERS.map((text) => (
+              <button
                 key={text}
-                variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-                whileTap={{ scale: 0.97 }}
                 onClick={() => send(text)}
-                className="group flex flex-col items-start gap-2 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3 text-left text-[12.5px] leading-snug text-paper/80 transition-colors hover:border-gold/40 hover:bg-gold/[0.05] hover:text-paper"
+                className="w-full rounded-xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-2.5 text-left text-[12.5px] text-paper/80 transition-colors hover:border-gold/40 hover:bg-gold/[0.05] hover:text-paper"
               >
-                <Icon className="size-4 text-mute transition-colors group-hover:text-gold" strokeWidth={1.75} />
-                {text}
-              </motion.button>
+                “{text}”
+              </button>
             ))}
           </motion.div>
         )}
       </AnimatePresence>
 
       <AnimatePresence>{error && <ErrorNote key="err">{error}</ErrorNote>}</AnimatePresence>
+
+      {/* earlier exchanges, tucked away */}
+      {past.length > 0 && (
+        <div className="mt-auto w-full">
+          <button
+            onClick={() => setShowLog((v) => !v)}
+            className="flex w-full items-center justify-between rounded-lg px-1 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-mute transition-colors hover:text-paper"
+          >
+            Earlier on the line ({past.length})
+            <ChevronDown className={clsx('size-3.5 transition-transform', showLog && 'rotate-180')} />
+          </button>
+          <AnimatePresence initial={false}>
+            {showLog && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="flex flex-col gap-3 pt-2">
+                  {past.map((t, i) => (
+                    <div key={i} className="border-l border-white/10 pl-3 text-[12.5px] leading-relaxed">
+                      <p className="text-mute">{t.you}</p>
+                      <p className="text-paper/80">{t.alfred.join(' ')}</p>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
     </PanelShell>
   )
 }

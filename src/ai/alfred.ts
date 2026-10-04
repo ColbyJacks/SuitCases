@@ -64,47 +64,94 @@ export function resetAlfred(session: string) {
   void fetch(`${BASE}/reset`, { method: 'POST', body: form }).catch(() => {})
 }
 
-/** Plays base64 WAV clips back to back, so each sentence starts as soon as the last one ends. */
+/**
+ * Plays Alfred's sentences back to back through Web Audio, so each one starts as soon as the
+ * last ends, and exposes a live level so the UI can pulse with his voice.
+ */
 export class Speaker {
-  private queue: string[] = []
-  private current: HTMLAudioElement | null = null
-  private url: string | null = null
+  private ctx: AudioContext | null = null
+  private analyser: AnalyserNode | null = null
+  private samples = new Float32Array(1024)
+  private queue: { data: Promise<AudioBuffer | null>; index: number }[] = []
+  private source: AudioBufferSourceNode | null = null
+  private playing = false
+  private generation = 0
+  /** Fires with true when Alfred starts talking and false when the queue runs dry. */
   onChange: (speaking: boolean) => void = () => {}
+  /** Fires with the index of the sentence that just started playing. */
+  onSentence: (index: number) => void = () => {}
 
   get speaking() {
-    return this.current !== null
+    return this.playing
   }
 
-  enqueue(base64Wav: string) {
+  /** Call from a click or tap so the browser lets audio play. */
+  prime() {
+    if (!this.ctx) {
+      this.ctx = new AudioContext()
+      this.analyser = this.ctx.createAnalyser()
+      this.analyser.fftSize = 1024
+      this.analyser.connect(this.ctx.destination)
+    }
+    void this.ctx.resume()
+  }
+
+  enqueue(base64Wav: string, index: number) {
+    this.prime()
     const bytes = Uint8Array.from(atob(base64Wav), (c) => c.charCodeAt(0))
-    this.queue.push(URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' })))
-    if (!this.current) this.next()
+    // Decode right away so the next sentence is ready the moment the current one ends.
+    const data = this.ctx!.decodeAudioData(bytes.buffer).catch(() => null)
+    this.queue.push({ data, index })
+    if (!this.playing) void this.next()
+  }
+
+  /** Loudness of what's playing right now, 0..1. */
+  level() {
+    if (!this.analyser || !this.playing) return 0
+    this.analyser.getFloatTimeDomainData(this.samples)
+    let sum = 0
+    for (const s of this.samples) sum += s * s
+    return Math.min(1, Math.sqrt(sum / this.samples.length) * 4)
   }
 
   stop() {
-    this.current?.pause()
-    this.queue.forEach((u) => URL.revokeObjectURL(u))
+    this.generation++
     this.queue = []
-    this.finish()
-    this.onChange(false)
+    if (this.source) {
+      this.source.onended = null
+      this.source.stop()
+      this.source = null
+    }
+    if (this.playing) {
+      this.playing = false
+      this.onChange(false)
+    }
   }
 
-  private finish() {
-    if (this.url) URL.revokeObjectURL(this.url)
-    this.current = null
-    this.url = null
-  }
-
-  private next() {
-    this.finish()
-    const url = this.queue.shift()
-    if (!url) return this.onChange(false)
-    const audio = new Audio(url)
-    this.current = audio
-    this.url = url
-    audio.onended = () => this.next()
-    audio.onerror = () => this.next()
-    this.onChange(true)
-    audio.play().catch(() => this.next())
+  private async next(): Promise<void> {
+    const item = this.queue.shift()
+    if (!item) {
+      this.playing = false
+      this.onChange(false)
+      return
+    }
+    if (!this.playing) {
+      this.playing = true
+      this.onChange(true)
+    }
+    const gen = this.generation
+    const buffer = await item.data
+    if (gen !== this.generation) return
+    if (!buffer) return this.next()
+    const src = this.ctx!.createBufferSource()
+    src.buffer = buffer
+    src.connect(this.analyser!)
+    src.onended = () => {
+      this.source = null
+      void this.next()
+    }
+    this.source = src
+    this.onSentence(item.index)
+    src.start()
   }
 }
