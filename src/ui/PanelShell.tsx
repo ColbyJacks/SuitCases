@@ -27,6 +27,7 @@ export function PanelShell({
   footer,
   bodyClassName,
   bodyRef,
+  className,
   children,
 }: {
   id: ModuleId
@@ -37,6 +38,7 @@ export function PanelShell({
   footer?: ReactNode
   bodyClassName?: string
   bodyRef?: Ref<HTMLDivElement>
+  className?: string
   children: ReactNode
 }) {
   const info = MODULES.find((m) => m.id === id)!
@@ -53,6 +55,7 @@ export function PanelShell({
       className={clsx(
         'glow-border grain pointer-events-auto fixed inset-x-3 bottom-3 z-30 flex max-h-[64vh] flex-col rounded-3xl border border-white/[0.07] bg-ink-2/80 shadow-[0_40px_120px_-20px_rgba(0,0,0,0.95)] backdrop-blur-2xl md:bottom-5 md:left-auto md:right-5 md:top-5 md:max-h-none',
         wide ? 'md:w-[420px]' : 'md:w-[390px]',
+        className,
       )}
     >
       <header className="flex items-start gap-3 border-b border-white/[0.06] p-5 pb-4">
