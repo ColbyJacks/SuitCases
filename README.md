@@ -10,6 +10,8 @@ Design notes:
 - UI transitions use Motion springs and shared-layout highlights (the dock pill, preset cards, style and role chips). The dock and module panels follow kokonut UI patterns (Toolbar, AI Voice, AI Input, Shimmer Text). Every module panel shares one glass frame and set of controls (`src/ui/PanelShell.tsx`).
 - In 3D, the lid, latches, combination dials and modules run on small damped springs (`src/lib/spring.ts`), and the camera glides between shots with drei `CameraControls`.
 
+Presenting the project? [docs/LEARNING_GUIDE.md](docs/LEARNING_GUIDE.md) explains every tool and technique used here, with videos and docs to learn from.
+
 ## Run it
 
 Requires Node 20+.
@@ -44,7 +46,8 @@ The endpoints run in `npm run dev` and `npm run preview`. A plain static host (G
 | 3 | HeistAI assistant | Working (needs API key) |
 | 4 | Alibi Generator | Working (needs API key) |
 | 5 | ID Forge | Working |
-| 6 | Watchtower (radar + road map) | Working |
+| 6 | Watchtower | Prototype (bundled demo stations; optional browser GPS) |
+
 
 ### Voice Modulator
 
@@ -77,12 +80,8 @@ Describe the job, where you want to have been, and who vouches for you (or leave
 
 ### Watchtower
 
-Watchtower has two coordinated, themed views:
+A proximity-radar prototype that plots bundled San Antonio reference stations relative to a demo or browser-provided location. The station list and response ranges are illustrative only; this does not provide live dispatch, officer, vehicle, or arrival-time tracking, and must not be used for emergency decisions.
 
-- **Radar** shows the bundled reference-station deck around the selected location.
-- **Road map** darkens public road tiles to match the green field-display palette. Click a destination, then build a normal driving route with distance and duration.
-
-It does not model response times, live emergency activity, units, or avoidance criteria. The station deck and public routing service are prototype data sources.
 
 ## Code map
 
@@ -95,9 +94,12 @@ src/
   lib/spring.ts                damped spring used by the 3D animations
   modules/registry.ts          module list (names, taglines, ready flag)
   modules/VoiceModulatorModule.tsx   3D bronze speaker
+  modules/WatchtowerModule.tsx      3D radar prop for the sixth slot
   modules/PlaceholderModules.tsx     3D props for HeistAI (orb) and Alibi (notebook)
+  radar/radarEngine.ts               demo stations, bearings, distances and estimate model
   audio/voiceEngine.ts         Web Audio voice changer
   ui/VoiceModulatorPanel.tsx   voice control panel
+  ui/WatchtowerPanel.tsx       proximity radar prototype
   ui/PanelShell.tsx            shared glass panel frame + form controls for every module
   ui/ShaderTitle.tsx           WebGL title effect
   ui/Dock.tsx                  bottom module toolbar

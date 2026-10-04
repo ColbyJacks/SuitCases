@@ -15,8 +15,8 @@ export const MODULES: ModuleInfo[] = [
   { id: 'heistai', name: 'HeistAI', code: 'AI-9', tagline: 'Your crew’s AI mastermind', ready: true },
   { id: 'alibi', name: 'Alibi Generator', code: 'ALB-4', tagline: 'A watertight backstory, on demand', ready: true },
   { id: 'fakeid', name: 'ID Forge', code: 'ID-5', tagline: 'Snap a photo, print a crew ID', ready: true },
-  { id: 'watchtower', name: 'Watchtower', code: 'WCH-6', tagline: 'Radar and road navigation', ready: true },
-]
+  { id: 'watchtower', name: 'Watchtower', code: 'WCH-6', tagline: 'Public-safety proximity radar', ready: true },
+
 
 /** Slot number shown on panels ("Module 03"). */
 export function moduleNumber(id: ModuleId) {

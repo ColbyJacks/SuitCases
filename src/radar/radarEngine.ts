@@ -43,3 +43,15 @@ export type NearbyStation = Station & { miles: number; bearing: number }
 export function nearbyStations(location: Coordinate) {
   return DEMO_STATIONS.map((station) => ({ ...station, miles: distanceMiles(location, station), bearing: bearingDegrees(location, station) })).sort((a, b) => a.miles - b.miles)
 }
+
+
+export type Priority = 'Priority 1' | 'Priority 2' | 'Priority 3'
+
+const BASELINE_MINUTES: Record<Priority, number> = { 'Priority 1': 8, 'Priority 2': 15, 'Priority 3': 29 }
+
+/** Prototype display model: a historical baseline with a deliberately small proximity adjustment. */
+export function estimatedResponse(priority: Priority, nearestMiles: number) {
+  const minutes = BASELINE_MINUTES[priority] + Math.min(4, nearestMiles * 0.45)
+  return { low: Math.max(1, Math.round(minutes - 2)), high: Math.round(minutes + 3) }
+}
+
