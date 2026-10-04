@@ -1,8 +1,10 @@
+
 import { useMemo, useState } from 'react'
 import { Crosshair, LocateFixed, MapPin, Navigation, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react'
 import clsx from 'clsx'
 import { Button, PanelShell, Section } from './PanelShell'
 import { compassDirection, estimatedResponse, nearbyStations, type Coordinate, type Priority } from '../radar/radarEngine'
+
 
 const DEMO_LOCATION: Coordinate = { latitude: 29.4241, longitude: -98.4936 }
 const RANGES = [3, 5, 10, 20]

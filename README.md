@@ -48,6 +48,7 @@ The endpoints run in `npm run dev` and `npm run preview`. A plain static host (G
 | 5 | ID Forge | Working |
 | 6 | Watchtower | Prototype (bundled demo stations; optional browser GPS) |
 
+
 ### Voice Modulator
 
 Live mic processing with the Web Audio API, no server needed.
@@ -80,6 +81,7 @@ Describe the job, where you want to have been, and who vouches for you (or leave
 ### Watchtower
 
 A proximity-radar prototype that plots bundled San Antonio reference stations relative to a demo or browser-provided location. The station list and response ranges are illustrative only; this does not provide live dispatch, officer, vehicle, or arrival-time tracking, and must not be used for emergency decisions.
+
 
 ## Code map
 
