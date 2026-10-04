@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { resolve } from 'node:path'
 import Anthropic from '@anthropic-ai/sdk'
 import { loadEnv, type Connect, type Plugin } from 'vite'
 
@@ -9,7 +10,8 @@ import { loadEnv, type Connect, type Plugin } from 'vite'
  *   POST /api/heistai  { messages: [{ role, content }] }  -> streamed plain text
  *   POST /api/alibi    { crime, whereabouts, crew, style } -> JSON alibi
  *
- * The key comes from ANTHROPIC_API_KEY in `.env.local` (gitignored) or the shell environment.
+ * The key (and optional ANTHROPIC_WORKSPACE_ID) come from `heistai-server/.env`, the same file the
+ * HeistAI voice server uses, falling back to `.env.local` (both gitignored) or the shell environment.
  */
 
 const MODEL = 'claude-opus-5-5'
@@ -65,10 +67,14 @@ type ChatMessage = { role: 'user' | 'assistant'; content: string }
 export function heistApiPlugin(): Plugin {
   let client: Anthropic | null = null
   let apiKey: string | undefined
+  let workspaceId: string | undefined
 
   const getClient = () => {
     if (!apiKey) return null
-    client ??= new Anthropic({ apiKey })
+    client ??= new Anthropic({
+      apiKey,
+      defaultHeaders: workspaceId ? { 'anthropic-workspace-id': workspaceId } : undefined,
+    })
     return client
   }
 
@@ -80,7 +86,11 @@ export function heistApiPlugin(): Plugin {
   return {
     name: 'heist-api',
     configResolved(config) {
-      apiKey = loadEnv(config.mode, config.envDir || process.cwd(), '').ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY
+      // Same key and workspace as the HeistAI voice server: heistai-server/.env wins, then .env.local, then the shell.
+      const voice = loadEnv(config.mode, resolve(config.root, 'heistai-server'), '')
+      const app = loadEnv(config.mode, config.envDir || process.cwd(), '')
+      apiKey = voice.ANTHROPIC_API_KEY || app.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY
+      workspaceId = voice.ANTHROPIC_WORKSPACE_ID || app.ANTHROPIC_WORKSPACE_ID || process.env.ANTHROPIC_WORKSPACE_ID
     },
     configureServer(server) {
       attach(server.middlewares)
