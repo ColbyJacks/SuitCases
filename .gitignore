@@ -36,3 +36,7 @@ __pycache__
 heistai-server/.env
 heistai-server/.venv
 heistai-server/voices/*.pt
+
+# face swap backend: Python venv and model weights stay local
+backend/.venv/
+backend/*.onnx

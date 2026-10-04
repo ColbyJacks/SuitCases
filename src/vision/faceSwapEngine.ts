@@ -36,6 +36,7 @@ class FaceSwapEngine {
   
   private ws: WebSocket | null = null
   private wsReadyToSend = false
+  private pendingSource: string | null = null
   private wsSwappedReady = false
   private wsSwappedImg = new Image()
   
@@ -67,8 +68,28 @@ class FaceSwapEngine {
     this.canvas.width = this.video.videoWidth
     this.canvas.height = this.video.videoHeight
     
-    this.ws = new WebSocket('ws://localhost:8001/ws')
-    this.ws.onopen = () => { this.wsReadyToSend = true }
+    // Goes through the Vite proxy (/api/faceswap -> backend :8001) so it works over https / Tailscale.
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const ws = new WebSocket(`${proto}//${location.host}/api/faceswap/ws`)
+    this.ws = ws
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('timeout')), 8000)
+        ws.onopen = () => { clearTimeout(timer); resolve() }
+        ws.onerror = () => { clearTimeout(timer); reject(new Error('error')) }
+      })
+    } catch {
+      ws.close()
+      this.ws = null
+      stream.getTracks().forEach((t) => t.stop())
+      this.stream = null
+      throw new Error("Can't reach the face swap server. Run `npm run faceswap` and wait for \"Models Loaded!\".")
+    }
+    ws.onclose = () => {
+      if (this.running) this.stop()
+    }
+    this.wsReadyToSend = true
+    if (this.pendingSource) ws.send(this.pendingSource)
     this.ws.onmessage = (e) => {
       this.wsSwappedImg.onload = () => { 
         this.wsSwappedReady = true
@@ -105,9 +126,8 @@ class FaceSwapEngine {
     img.getContext('2d')!.drawImage(bitmap, 0, 0, img.width, img.height)
     bitmap.close()
 
-    if (this.ws?.readyState === 1) {
-      this.ws.send("SET_SOURCE:" + img.toDataURL('image/jpeg', 0.9))
-    }
+    this.pendingSource = "SET_SOURCE:" + img.toDataURL('image/jpeg', 0.9)
+    if (this.ws?.readyState === 1) this.ws.send(this.pendingSource)
     this.hasSource = true
 
     if (this.sourceUrl) URL.revokeObjectURL(this.sourceUrl)
@@ -117,6 +137,7 @@ class FaceSwapEngine {
 
   clearSource() {
     this.hasSource = false
+    this.pendingSource = null
     if (this.sourceUrl) URL.revokeObjectURL(this.sourceUrl)
     this.sourceUrl = null
     this.onChange?.()

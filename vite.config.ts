@@ -13,6 +13,13 @@ const voiceProxy: Record<string, ProxyOptions> = {
     changeOrigin: true,
     rewrite: (path) => path.replace(/^\/api\/voice/, ''),
   },
+  // Face swap backend in backend/ (npm run faceswap). WebSocket: /api/faceswap/ws -> :8001/ws
+  '/api/faceswap': {
+    target: process.env.FACESWAP_SERVER_URL || 'http://127.0.0.1:8001',
+    ws: true,
+    changeOrigin: true,
+    rewrite: (path) => path.replace(/^\/api\/faceswap/, ''),
+  },
   // The HeistAI voice server in heistai-server/ (npm run heistai). /api/alfred/talk -> :8766/talk
   '/api/alfred': {
     target: process.env.HEISTAI_SERVER_URL || 'http://127.0.0.1:8766',
@@ -24,7 +31,7 @@ const voiceProxy: Record<string, ProxyOptions> = {
 export default defineConfig({
   plugins: [react(), tailwindcss(), heistApiPlugin()],
   base: single ? './' : '/',
-  server: { proxy: voiceProxy },
+  server: { proxy: voiceProxy, allowedHosts: ['colbys-pc.tail7246dc.ts.net'] },
   preview: { proxy: voiceProxy },
   build: {
     assetsInlineLimit: single ? 100_000_000 : 4096,

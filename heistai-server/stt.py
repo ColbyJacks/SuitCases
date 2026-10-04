@@ -14,11 +14,24 @@ import os
 import time
 from typing import BinaryIO, Union
 
+import site
+
+# faster-whisper (CTranslate2) needs the CUDA 12 cuBLAS/cuDNN DLLs. pip installs them under
+# site-packages/nvidia/*/bin, which Windows doesn't search by default.
+for _sp in site.getsitepackages():
+    for _pkg in ("cublas", "cudnn", "cuda_nvrtc", "cuda_runtime"):
+        _bin = os.path.join(_sp, "nvidia", _pkg, "bin")
+        if os.path.isdir(_bin):
+            os.environ["PATH"] = _bin + os.pathsep + os.environ["PATH"]
+            if hasattr(os, "add_dll_directory"):
+                os.add_dll_directory(_bin)
+
 from faster_whisper import WhisperModel
 
 # Config (override in .env / environment variables)
 MODEL_SIZE = os.getenv("STT_MODEL", "base.en")      # tiny.en, base.en, small.en
-COMPUTE_TYPE = os.getenv("STT_COMPUTE", "int8")     # int8 is fastest on CPU
+DEVICE = os.getenv("STT_DEVICE", "cuda")           # "cpu" to force CPU
+COMPUTE_TYPE = os.getenv("STT_COMPUTE", "float16" if DEVICE == "cuda" else "int8")
 LANGUAGE = "en"
 
 _model = None  # loaded lazily on first use
@@ -29,8 +42,8 @@ def load_model() -> WhisperModel:
     global _model
     if _model is None:
         start = time.perf_counter()
-        _model = WhisperModel(MODEL_SIZE, device="cpu", compute_type=COMPUTE_TYPE)
-        print(f"[stt] loaded {MODEL_SIZE} ({COMPUTE_TYPE}) in {time.perf_counter() - start:.1f}s")
+        _model = WhisperModel(MODEL_SIZE, device=DEVICE, compute_type=COMPUTE_TYPE)
+        print(f"[stt] loaded {MODEL_SIZE} ({DEVICE}/{COMPUTE_TYPE}) in {time.perf_counter() - start:.1f}s")
     return _model
 
 

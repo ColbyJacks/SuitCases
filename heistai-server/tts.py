@@ -1,5 +1,5 @@
 """
-Text-to-speech for the HeistAi chatbot module (OmniVoice, CPU).
+Text-to-speech for the HeistAi chatbot module (OmniVoice, GPU).
 
 Exposes:
     synthesize(text, voice) -> np.ndarray   - 24 kHz mono float audio
@@ -20,6 +20,7 @@ import torch
 from omnivoice import OmniVoice, VoiceClonePrompt
 
 SAMPLE_RATE = 24000
+DEVICE = os.getenv("TTS_DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
 NUM_STEPS = int(os.getenv("TTS_STEPS", "16"))  # 32 = default quality, 16 = faster
 VOICES_DIR = "voices"
 
@@ -37,16 +38,16 @@ _clone_prompts: dict[str, VoiceClonePrompt] = {}
 
 
 def load_model() -> OmniVoice:
-    """Load OmniVoice once on CPU. Call when the chatbot module opens."""
+    """Load OmniVoice once (GPU if available). Call when the chatbot module opens."""
     global _model
     if _model is None:
         start = time.perf_counter()
         _model = OmniVoice.from_pretrained(
             "k2-fsa/OmniVoice",
-            device_map="cpu",
-            dtype=torch.float32,  # float16 is slow or unsupported on most CPUs
+            device_map=DEVICE,
+            dtype=torch.float16 if DEVICE == "cuda" else torch.float32,  # float16 is slow on CPU
         )
-        print(f"[tts] loaded OmniVoice in {time.perf_counter() - start:.1f}s")
+        print(f"[tts] loaded OmniVoice on {DEVICE} in {time.perf_counter() - start:.1f}s")
     return _model
 
 

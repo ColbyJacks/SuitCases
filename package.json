@@ -8,6 +8,7 @@
     "dev": "vite",
     "voice": "node scripts/voice-server.mjs",
     "heistai": "node scripts/heistai-server.mjs",
+    "faceswap": "node scripts/faceswap-server.mjs",
     "prebuild": "node scripts/copy-mediapipe.mjs",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
