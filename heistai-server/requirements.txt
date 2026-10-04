@@ -1,0 +1,11 @@
+# Install the CPU build of torch first (see README), then: pip install -r requirements.txt --only-binary=av
+faster-whisper
+av<15
+anthropic
+python-dotenv
+omnivoice
+soundfile
+numpy
+fastapi
+uvicorn
+python-multipart

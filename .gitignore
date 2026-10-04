@@ -31,3 +31,8 @@ voice-server/models/*
 !voice-server/models/README.md
 voice-server/.venv
 __pycache__
+
+# HeistAI voice server: keys, venv, and cached voice prompts stay local
+heistai-server/.env
+heistai-server/.venv
+heistai-server/voices/*.pt
