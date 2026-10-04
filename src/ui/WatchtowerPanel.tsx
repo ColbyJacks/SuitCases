@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Crosshair, LocateFixed, Radio, Wind } from 'lucide-react'
+import { Crosshair, LocateFixed, Radio } from 'lucide-react'
 import { PanelShell } from './PanelShell'
 import { WatchtowerMap, type MapFocus } from '../watchtower/WatchtowerMap'
 import { LayerControls } from '../watchtower/LayerControls'
 import { RouteControls } from '../watchtower/RouteControls'
-import { MarkerDetails, relativeTime } from '../watchtower/MarkerDetails'
+import { MarkerDetails } from '../watchtower/MarkerDetails'
+import { WeatherCard } from '../watchtower/WeatherCard'
 import { errorMessage, getRoute, JAVA_API_BASE } from '../watchtower/api'
 import { useLayers } from '../watchtower/useLayers'
 import { DEMO_POSITION, LAYERS, METERS_PER_MILE, type Destination, type LayerId, type RoadRoute } from '../watchtower/types'
@@ -23,6 +24,7 @@ export function WatchtowerPanel({ onClose }: { onClose: () => void }) {
   const [samples, setSamples] = useState(!JAVA_API_BASE)
   const [enabled, setEnabled] = useState<Record<LayerId, boolean>>({ crew: true, vehicles: true, objectives: true, traffic: false, weather: false, places: false })
   const [refresh, setRefresh] = useState(0)
+  const [weatherRefresh, setWeatherRefresh] = useState(0)
   const [selectedId, setSelectedId] = useState<string>()
   const [destination, setDestination] = useState<Destination>()
   const [route, setRoute] = useState<RoadRoute>()
@@ -31,7 +33,7 @@ export function WatchtowerPanel({ onClose }: { onClose: () => void }) {
   const [focus, setFocus] = useState<MapFocus>()
   const routeAbort = useRef<AbortController | null>(null)
   const mounted = useRef(true)
-  const { states, weather, connection } = useLayers(position, enabled, samples, rangeMiles * METERS_PER_MILE, refresh)
+  const { states, weather, connection } = useLayers(position, enabled, samples, rangeMiles * METERS_PER_MILE, refresh, weatherRefresh)
   const markers = LAYERS.flatMap(layer => enabled[layer.id] ? states[layer.id].data?.markers ?? [] : [])
   const selected = markers.find(marker => marker.id === selectedId)
 
@@ -95,14 +97,7 @@ export function WatchtowerPanel({ onClose }: { onClose: () => void }) {
           onSamples={setSamples} onRefresh={() => setRefresh(value => value + 1)} />
         {selected && <MarkerDetails marker={selected} position={position} onClose={() => setSelectedId(undefined)}
           onFocus={() => focusOn(selected.position)} onDestination={() => chooseDestination({ label: selected.label, position: selected.position })} />}
-        {enabled.weather && <section className="wt-weather" aria-label="Weather at your position">
-          <div className="wt-section-heading"><span>Weather at your position</span><Wind size={15} /></div>
-          {weather.data ? <>
-            <div className="wt-weather-reading"><strong>{weather.data.temperatureC === null ? '—' : Math.round(weather.data.temperatureC)}°C</strong>
-              <span>Wind {weather.data.windKmh ?? '—'} km/h<br />Precipitation {weather.data.precipitationMm ?? '—'} mm</span></div>
-            <p className="wt-muted">{weather.data.source} · observed {relativeTime(weather.data.observedAt)}{weather.status === 'stale' ? ' · refresh needed' : ''}</p>
-          </> : <p className="wt-muted">{weather.status === 'loading' ? 'Loading conditions…' : weather.error ?? 'No weather available.'}</p>}
-        </section>}
+        {enabled.weather && <WeatherCard weather={weather} demo={!gps} onRefresh={() => setWeatherRefresh(value => value + 1)} />}
         {!selected && <p className="wt-help">Select a marker for its details. Search a destination or tap the map to plan an ordinary driving route.</p>}
       </div>
     </div>

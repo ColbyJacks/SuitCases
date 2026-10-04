@@ -1,6 +1,6 @@
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { defineConfig, type ProxyOptions } from 'vite'
+import { defineConfig, loadEnv, type ProxyOptions } from 'vite'
 import { heistApiPlugin } from './server/heistApi.ts'
 
 // SINGLE_FILE=1 inlines fonts and assets so the build can be packed into one HTML page.
@@ -21,13 +21,23 @@ const voiceProxy: Record<string, ProxyOptions> = {
   },
 }
 
-export default defineConfig({
-  plugins: [react(), tailwindcss(), heistApiPlugin()],
-  base: single ? './' : '/',
-  server: { proxy: voiceProxy },
-  preview: { proxy: voiceProxy },
-  build: {
-    assetsInlineLimit: single ? 100_000_000 : 4096,
-    chunkSizeWarningLimit: 2000,
-  },
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const proxy: Record<string, ProxyOptions> = {
+    ...voiceProxy,
+    '/api/watchtower/weather': {
+      target: env.WATCHTOWER_SERVER_URL || 'http://127.0.0.1:8080',
+      changeOrigin: true,
+    },
+  }
+  return {
+    plugins: [react(), tailwindcss(), heistApiPlugin()],
+    base: single ? './' : '/',
+    server: { proxy },
+    preview: { proxy },
+    build: {
+      assetsInlineLimit: single ? 100_000_000 : 4096,
+      chunkSizeWarningLimit: 2000,
+    },
+  }
 })

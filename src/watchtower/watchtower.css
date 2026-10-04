@@ -79,6 +79,9 @@
 .wt-weather-reading { margin-top:12px; display:flex; align-items:center; gap:18px; }
 .wt-weather-reading strong { font-size:28px; color:#d3c5ff; font-weight:400; }
 .wt-weather-reading span { font-size:12px; line-height:1.7; color:#bacabf; }
+.wt-weather-condition { margin:12px 0 0; font-size:13px; color:#d3c5ff; }
+.wt-weather a { color:inherit; text-decoration:underline; text-underline-offset:3px; }
+.wt-weather > .wt-button { margin-top:4px; }
 .wt-help { font-size:12px; color:#91a89c; line-height:1.6; }
 .wt-status-strip { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 16px; padding:11px 18px; font-family:var(--font-mono); font-size:11px; color:#9bc4ae; border-top:1px solid #ffffff12; background:#050d0c; flex-shrink:0; }
 @media (max-width:700px) {

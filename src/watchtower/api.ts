@@ -1,14 +1,17 @@
 import { requestRoadRoute } from '../radar/routeEngine'
 import type { Coordinate } from '../radar/radarEngine'
 import { validCoordinate, type Capabilities, type LayerPayload, type MarkerLayer, type RoadRoute, type SearchResult, type WeatherData } from './types'
+import { readWeather } from './weather'
 
 // Set to the Java service's /api/watchtower base. Never put provider secrets in VITE_* variables.
 export const JAVA_API_BASE = (import.meta.env.VITE_WATCHTOWER_API_URL ?? '').trim().replace(/\/$/, '')
+export const WEATHER_API_BASE = (import.meta.env.VITE_WATCHTOWER_WEATHER_API_URL ?? '').trim().replace(/\/$/, '')
+  || JAVA_API_BASE || '/api/watchtower'
 
-export async function getJson(url: string, signal?: AbortSignal, init?: RequestInit): Promise<unknown> {
+export async function getJson(url: string, signal?: AbortSignal, init?: RequestInit, errors?: Record<number, string>): Promise<unknown> {
   const timeout = AbortSignal.timeout(20_000)
   const response = await fetch(url, { ...init, signal: signal ? AbortSignal.any([signal, timeout]) : timeout })
-  if (!response.ok) throw new Error(response.status === 429 ? 'Too many requests. Try again shortly.' : 'This data source is unavailable. Try again.')
+  if (!response.ok) throw new Error(errors?.[response.status] ?? (response.status === 429 ? 'Too many requests. Try again shortly.' : 'This data source is unavailable. Try again.'))
   if (!response.headers.get('content-type')?.includes('json')) throw new Error('The service returned an unexpected response.')
   return response.json()
 }
@@ -56,20 +59,23 @@ export async function getRoute(start: Coordinate, destination: Coordinate, signa
 }
 
 export async function getWeather(position: Coordinate, signal: AbortSignal): Promise<WeatherData> {
+  if (!validCoordinate(position)) throw new Error('Weather needs valid latitude and longitude.')
   const params = new URLSearchParams({ lat: String(position.latitude), lon: String(position.longitude) })
-  if (JAVA_API_BASE) {
-    const data = await getJson(`${JAVA_API_BASE}/weather?${params}`, signal, { credentials: 'include' }) as WeatherData
-    if (!data || typeof data.source !== 'string' || typeof data.observedAt !== 'string' || typeof data.fetchedAt !== 'string'
-      || ![data.temperatureC, data.windKmh, data.precipitationMm, data.weatherCode].every(value => value === null || typeof value === 'number' && Number.isFinite(value))) throw new Error('Weather could not be read.')
-    return data
+  try {
+    return readWeather(await getJson(`${WEATHER_API_BASE}/weather?${params}`, signal, { credentials: 'include' }, {
+      400: 'Weather needs valid latitude and longitude.',
+      404: 'The weather endpoint is unavailable. Check the weather service URL.',
+      500: 'The weather service encountered an error. Try again.',
+      502: 'Weather is unavailable. Check that the Java service is running, then retry.',
+      503: 'The weather provider is busy. Try again shortly.',
+      504: 'The weather provider timed out. Try again.',
+    }))
+  } catch (error) {
+    if (signal.aborted) throw error
+    if (error instanceof TypeError) throw new Error('Could not reach the weather service. Check that it is running, then retry.')
+    if (error instanceof SyntaxError) throw new Error('Weather could not be read.')
+    throw error
   }
-  const query = new URLSearchParams({ latitude: String(position.latitude), longitude: String(position.longitude),
-    current: 'temperature_2m,precipitation,weather_code,wind_speed_10m', timezone: 'UTC' })
-  const data = await getJson(`https://api.open-meteo.com/v1/forecast?${query}`, signal) as { current?: Record<string, number | string | null> }
-  if (!data.current || typeof data.current.time !== 'string') throw new Error('Weather could not be read.')
-  const number = (key: string) => typeof data.current![key] === 'number' && Number.isFinite(data.current![key]) ? data.current![key] as number : null
-  return { temperatureC: number('temperature_2m'), windKmh: number('wind_speed_10m'), precipitationMm: number('precipitation'),
-    weatherCode: number('weather_code'), observedAt: `${data.current.time}Z`, fetchedAt: new Date().toISOString(), source: 'Open-Meteo' }
 }
 
 export async function getLayer(layer: MarkerLayer, position: Coordinate, radiusMeters: number, signal: AbortSignal, operationId?: string): Promise<LayerPayload> {
