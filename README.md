@@ -43,7 +43,7 @@ The endpoints run in `npm run dev` and `npm run preview`. A plain static host (G
 | --- | --- | --- |
 | 1 | Voice Modulator (bronze speaker) | Working (voice clone needs `npm run voice`) |
 | 2 | Face-Swap Lens (camera lens) | Working |
-| 3 | HeistAI assistant | Working (needs API key) |
+| 3 | HeistAI assistant | Working (voice needs `npm run heistai`, text needs API key) |
 | 4 | Alibi Generator | Working (needs API key) |
 | 5 | ID Forge | Working |
 | 6 | Watchtower | Prototype (bundled demo stations; optional browser GPS) |
@@ -82,7 +82,13 @@ Live face swap in the browser, no server and no uploads.
 
 ### HeistAI
 
-A chat with an in-character heist mastermind. Replies stream in as they're written. Starter prompts help you get going, and the conversation survives closing the panel. It keeps things movie-plot fictional.
+Talk to Alfred, the crew's AI handler, out loud. Tap the mic, ask your question, and he answers in his own cloned voice, one sentence at a time as each is ready. You can also type, and he still answers out loud. Voice needs the local Python server in `heistai-server/` (faster-whisper for speech to text, Claude for the reply, OmniVoice for Alfred's voice):
+
+```bash
+npm run heistai   # in a second terminal, next to npm run dev
+```
+
+Setup is in [heistai-server/README.md](heistai-server/README.md). Without that server the panel falls back to a streaming text chat with an in-character heist mastermind (needs the API key). Starter prompts help you get going, the conversation survives closing the panel, and it keeps things movie-plot fictional.
 
 ### Alibi Generator
 
@@ -118,9 +124,10 @@ src/
   vision/faceSwapEngine.ts     face tracking + WebGL face warp
   modules/FaceSwapLensModule.tsx     3D camera lens
   ui/FaceSwapPanel.tsx         face swap panel
-  ui/HeistAIPanel.tsx          streaming chat panel
+  ui/HeistAIPanel.tsx          talk-to-Alfred panel (mic + text), text chat fallback
   ui/AlibiPanel.tsx            alibi form + case-file result
   ai/heistApi.ts               browser calls to /api/heistai and /api/alibi
+  ai/alfred.ts                 browser calls to /api/alfred (voice server), sentence playback queue
   idcard/                      ID Forge: card template, renderer, camera helpers, last-card store
   modules/FakeIdModule.tsx     3D crew ID on a card tray
   ui/FakeIdPanel.tsx           ID Forge panel (camera, countdown, fields, download)
@@ -129,6 +136,10 @@ server/
 voice-server/
   server.py                    FastAPI + RVC voice clone, proxied by Vite at /api/voice
   models/                      .pth voice models (gitignored)
+heistai-server/
+  server.py                    FastAPI: STT -> Claude -> TTS, proxied by Vite at /api/alfred
+  stt.py llm.py tts.py pipeline.py   Alfred's speech pipeline
+  voices/Alfred.wav            reference clip for Alfred's cloned voice
 ```
 
 ### Adding a module
