@@ -6,6 +6,8 @@
   "scripts": {
     "predev": "node scripts/copy-mediapipe.mjs",
     "dev": "vite",
+    "weather": "node scripts/weather-server.mjs",
+    "test:weather": "node --experimental-strip-types --test tests/watchtower-weather.test.mjs",
     "voice": "node scripts/voice-server.mjs",
     "heistai": "node scripts/heistai-server.mjs",
     "prebuild": "node scripts/copy-mediapipe.mjs",

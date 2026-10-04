@@ -46,7 +46,7 @@ The endpoints run in `npm run dev` and `npm run preview`. A plain static host (G
 | 3 | HeistAI assistant | Working (voice needs `npm run heistai`, text needs API key) |
 | 4 | Alibi Generator | Working (needs API key) |
 | 5 | ID Forge | Working |
-| 6 | Watchtower | Prototype (bundled demo stations; optional browser GPS) |
+| 6 | Watchtower | Map/radar, routes and Java weather; optional browser GPS |
 
 
 ### Voice Modulator
@@ -96,7 +96,16 @@ Describe the job, where you want to have been, and who vouches for you (or leave
 
 ### Watchtower
 
-A proximity-radar prototype that plots bundled San Antonio reference stations relative to a demo or browser-provided location. The station list and response ranges are illustrative only; this does not provide live dispatch, officer, vehicle, or arrival-time tracking, and must not be used for emergency decisions.
+A road map with a toggleable radar overlay, destination search, driving routes and
+independent information layers. Crew, assets, objectives and traffic use labeled sample
+markers; weather comes from the Java service using Open-Meteo current model conditions.
+
+Install JDK 21, then run `npm run weather` in a second terminal alongside `npm run dev`.
+Open Watchtower and enable **Weather** for temperature, condition, wind and precipitation.
+Weather refreshes every five minutes while visible and provides a retry button on errors.
+The default Vite proxy connects weather to Java on port 8080; no weather API key is needed
+for the noncommercial prototype. See [backend/README.md](backend/README.md) for setup,
+Windows commands, deployment settings and tests.
 
 
 ## Code map
@@ -116,7 +125,7 @@ src/
   audio/voiceEngine.ts         Web Audio voice changer
   audio/voiceClone.ts          browser calls to /api/voice (RVC server), WAV encoding
   ui/VoiceModulatorPanel.tsx   voice control panel
-  ui/WatchtowerPanel.tsx       proximity radar prototype
+  ui/WatchtowerPanel.tsx       map, radar, routes and weather controls
   ui/PanelShell.tsx            shared glass panel frame + form controls for every module
   ui/ShaderTitle.tsx           WebGL title effect
   ui/Dock.tsx                  bottom module toolbar
@@ -131,6 +140,9 @@ src/
   idcard/                      ID Forge: card template, renderer, camera helpers, last-card store
   modules/FakeIdModule.tsx     3D crew ID on a card tray
   ui/FakeIdPanel.tsx           ID Forge panel (camera, countdown, fields, download)
+backend/
+  src/main/java/com/example/demo/weather/   Java weather controller, provider adapter and cache
+  src/main/resources/application.properties weather service configuration
 server/
   heistApi.ts                  Vite plugin: Claude endpoints (reads ANTHROPIC_API_KEY)
 voice-server/
