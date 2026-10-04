@@ -9,6 +9,7 @@ import {
   FlipHorizontal2,
   ImagePlus,
   Loader2,
+  Paintbrush,
   ScanFace,
   ShieldCheck,
   Spline,
@@ -16,6 +17,17 @@ import {
 } from 'lucide-react'
 import { DEFAULT_FACE_PARAMS, faceSwapEngine, type FaceSwapParams } from '../vision/faceSwapEngine'
 import { Button, ErrorNote, Note, PanelShell, Section, Slider, Toggle, deviceError } from './PanelShell'
+
+const HAIR_SWATCHES = [
+  { name: 'Platinum', color: '#e8dcc0' },
+  { name: 'Honey', color: '#d9a55b' },
+  { name: 'Copper', color: '#c2582b' },
+  { name: 'Cherry', color: '#b0213a' },
+  { name: 'Rose', color: '#e88aa8' },
+  { name: 'Violet', color: '#7b4fd6' },
+  { name: 'Electric', color: '#2f7bff' },
+  { name: 'Mint', color: '#4fd1a5' },
+]
 
 function pct(v: number) {
   return `${Math.round(v * 100)}%`
@@ -247,22 +259,9 @@ export function FaceSwapPanel({ onClose }: { onClose: () => void }) {
         </label>
       </Section>
 
-      <Section label="Blend">
-        <div className="flex flex-col gap-1">
-          <Slider id="fs-opacity" label="Mask" value={params.opacity} min={0} max={1} format={pct} onChange={(v) => setParams({ ...params, opacity: v })} />
-          <Slider
-            id="fs-color"
-            label="Skin match"
-            value={params.colorMatch}
-            min={0}
-            max={1}
-            format={pct}
-            onChange={(v) => setParams({ ...params, colorMatch: v })}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Toggle label="Mirror" icon={FlipHorizontal2} checked={params.mirror} onChange={(v) => setParams({ ...params, mirror: v })} />
-          <Toggle label="Show mesh" icon={Spline} checked={params.showMesh} onChange={(v) => setParams({ ...params, showMesh: v })} />
+      <Section label="Settings">
+        <div className="grid grid-cols-1 gap-2">
+          <Toggle label="Mirror" icon={FlipHorizontal2} checked={params.mirror} onChange={(v) => { faceSwapEngine.setParams({ mirror: v }); setParams({ ...params, mirror: v }) }} />
         </div>
       </Section>
 
