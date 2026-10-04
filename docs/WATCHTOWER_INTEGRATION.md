@@ -72,19 +72,10 @@ connections are implied by enabling sample markers.
 
 ### Implemented weather slice
 
-Run `npm run weather` with JDK 21, alongside `npm run dev`, and enable Weather.
-The default `/api/watchtower/weather` request is proxied by Vite to port 8080.
-Leave the general Java URL blank when migrating only weather. A dedicated
-`VITE_WATCHTOWER_WEATHER_API_URL` overrides the weather base without redirecting
-search, routes or places. Default proxy target: `WATCHTOWER_SERVER_URL=http://127.0.0.1:8080`.
-See [backend/README.md](../backend/README.md) for the runnable service and deployment.
-Static hosts require an API reverse proxy or an absolute weather base configured at build time.
-
-The weather backend returns the existing `WeatherData` shape, nullable numeric readings,
-UTC timestamps and the Open-Meteo source. Its `observedAt` field is the model-valid time,
-not a weather-station observation. The panel decodes WMO conditions and distinguishes
-retrieval age from condition time. Weather does not fall back to direct public requests
-when Java fails.
+See [backend/README.md](../backend/README.md) for startup, configuration and deployment.
+The service returns the existing `WeatherData` shape, nullable readings and UTC times.
+`observedAt` is the model-valid time; `fetchedAt` records retrieval. The panel decodes WMO
+conditions and reports failures without falling back to direct provider requests.
 
 ### Prepared contracts for remaining features
 
@@ -165,13 +156,6 @@ geographic helpers remain available for distances and bearings.
   normalized geocoding/weather and route POST payloads. These earlier checks cover
   prepared contracts; the implemented weather service has its own isolated backend tests.
 
-### Weather implementation verification
-
-- `cd backend && ./mvnw verify`: provider mapping, UTC times, null readings, coordinate
-  validation, cache reuse/isolation, provider failures/recovery, timeouts, HTTP errors and CORS.
-- `npm run test:weather`: frontend response validation, condition labels and freshness.
-- `npm run build`: frontend TypeScript and production bundle.
-- Live Java → Open-Meteo → Vite checks confirm real conditions, coordinate validation
-  and cache timestamps. Desktop/mobile browser checks cover rendering, failed refresh
-  retaining stale readings, retry, GPS changes, cancellation of old location requests,
-  automatic refresh and stopping requests when the layer is hidden, without runtime errors.
+Weather checks cover mapping, validation, caching, recovery, timeouts and CORS in Java;
+frontend validation and build; and live desktop/mobile rendering, retry, GPS changes,
+request cancellation, automatic refresh and stopping requests when the layer is hidden.

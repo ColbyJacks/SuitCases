@@ -9,7 +9,6 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.net.InetSocketAddress;
-import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -25,6 +24,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.server.ResponseStatusException;
 
 class WeatherServiceTest {
     private static final String CONDITIONS = """
@@ -38,9 +38,7 @@ class WeatherServiceTest {
     void setup() {
         var builder = RestClient.builder().baseUrl("https://weather.test/forecast");
         server = MockRestServiceServer.bindTo(builder).build();
-        var properties = new WeatherProperties(URI.create("https://weather.test/forecast"),
-                Duration.ofSeconds(3), Duration.ofSeconds(8), Duration.ofMinutes(5), 500);
-        service = new WeatherService(builder.build(), properties,
+        service = new WeatherService(builder.build(), Duration.ofMinutes(5),
                 Clock.fixed(Instant.parse("2026-10-04T06:01:00Z"), ZoneOffset.UTC));
     }
 
@@ -121,7 +119,7 @@ class WeatherServiceTest {
 
     private void assertProviderStatus(HttpStatus status) {
         assertThatThrownBy(() -> service.getWeather(29.4241, -98.4936))
-                .isInstanceOfSatisfying(WeatherProviderException.class, error -> assertThat(error.status()).isEqualTo(status));
+                .isInstanceOfSatisfying(ResponseStatusException.class, error -> assertThat(error.getStatusCode()).isEqualTo(status));
     }
 
     @Test
@@ -140,12 +138,12 @@ class WeatherServiceTest {
         });
         provider.start();
         try {
-            var properties = new WeatherProperties(URI.create("http://127.0.0.1:" + provider.getAddress().getPort() + "/forecast"),
-                    Duration.ofSeconds(1), Duration.ofMillis(100), Duration.ofMinutes(5), 500);
-            var realService = new WeatherService(properties);
+            var client = WeatherService.createClient("http://127.0.0.1:" + provider.getAddress().getPort() + "/forecast",
+                    Duration.ofMillis(100));
+            var realService = new WeatherService(client, Duration.ofMinutes(5), Clock.systemUTC());
             assertThatThrownBy(() -> realService.getWeather(29.4241, -98.4936))
-                    .isInstanceOfSatisfying(WeatherProviderException.class,
-                            error -> assertThat(error.status()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT));
+                    .isInstanceOfSatisfying(ResponseStatusException.class,
+                            error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT));
         } finally { provider.stop(0); }
     }
 }

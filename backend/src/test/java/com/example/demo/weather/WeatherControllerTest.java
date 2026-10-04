@@ -18,6 +18,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -65,7 +66,7 @@ class WeatherControllerTest {
 
     @Test
     void returnsProviderFailureWithoutInternalDetails() throws Exception {
-        when(service.getWeather(29.4241, -98.4936)).thenThrow(new WeatherProviderException(
+        when(service.getWeather(29.4241, -98.4936)).thenThrow(new ResponseStatusException(
                 HttpStatus.GATEWAY_TIMEOUT, "Weather provider timed out. Try again.", new RuntimeException("private diagnostic")));
         mvc.perform(get("/api/watchtower/weather").param("lat", "29.4241").param("lon", "-98.4936"))
                 .andExpect(status().isGatewayTimeout()).andExpect(jsonPath("$", aMapWithSize(1)))
@@ -74,7 +75,7 @@ class WeatherControllerTest {
 
     @Test
     void rateLimitResponseIncludesRetryHint() throws Exception {
-        when(service.getWeather(29.4241, -98.4936)).thenThrow(new WeatherProviderException(
+        when(service.getWeather(29.4241, -98.4936)).thenThrow(new ResponseStatusException(
                 HttpStatus.SERVICE_UNAVAILABLE, "Weather provider is busy. Try again shortly.", null));
         mvc.perform(get("/api/watchtower/weather").param("lat", "29.4241").param("lon", "-98.4936"))
                 .andExpect(status().isServiceUnavailable()).andExpect(header().string("Retry-After", "60"));
