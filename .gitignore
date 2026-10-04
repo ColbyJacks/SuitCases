@@ -25,3 +25,14 @@ dist-ssr
 
 # copied from node_modules by scripts/copy-mediapipe.mjs
 public/mediapipe
+
+# RVC voice server: model weights and the Python venv stay local
+voice-server/models/*
+!voice-server/models/README.md
+voice-server/.venv
+__pycache__
+
+# HeistAI voice server: keys, venv, and cached voice prompts stay local
+heistai-server/.env
+heistai-server/.venv
+heistai-server/voices/*.pt

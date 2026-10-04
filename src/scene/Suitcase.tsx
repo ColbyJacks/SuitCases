@@ -7,6 +7,7 @@ import { VoiceModulatorModule } from '../modules/VoiceModulatorModule'
 import { PlaceholderModule } from '../modules/PlaceholderModules'
 import { FaceSwapLensModule } from '../modules/FaceSwapLensModule'
 import { FakeIdModule } from '../modules/FakeIdModule'
+import { WatchtowerModule } from '../modules/WatchtowerModule'
 import { Spring } from '../lib/spring'
 import { brushedRoughness, dialNumbers, nameplate } from './textures'
 
@@ -324,6 +325,8 @@ function ModuleSlot({ info, index, open, active, onSelect }: SlotProps) {
           <FaceSwapLensModule hovered={hovered} active={active} />
         ) : info.id === 'fakeid' ? (
           <FakeIdModule hovered={hovered} active={active} />
+        ) : info.id === 'watchtower' ? (
+          <WatchtowerModule hovered={hovered} active={active} />
         ) : (
           <PlaceholderModule id={info.id} hovered={hovered} />
         )}

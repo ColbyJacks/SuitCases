@@ -1,0 +1,6 @@
+# Python 3.10 (rvc-python's pinned deps don't build on 3.11+).
+# Install torch first for your hardware, see voice-server/README.md.
+rvc-python==0.1.5
+fastapi
+uvicorn
+python-multipart

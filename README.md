@@ -10,6 +10,8 @@ Design notes:
 - UI transitions use Motion springs and shared-layout highlights (the dock pill, preset cards, style and role chips). The dock and module panels follow kokonut UI patterns (Toolbar, AI Voice, AI Input, Shimmer Text). Every module panel shares one glass frame and set of controls (`src/ui/PanelShell.tsx`).
 - In 3D, the lid, latches, combination dials and modules run on small damped springs (`src/lib/spring.ts`), and the camera glides between shots with drei `CameraControls`.
 
+Presenting the project? [docs/LEARNING_GUIDE.md](docs/LEARNING_GUIDE.md) explains every tool and technique used here, with videos and docs to learn from.
+
 ## Run it
 
 Requires Node 20+.
@@ -39,16 +41,27 @@ The endpoints run in `npm run dev` and `npm run preview`. A plain static host (G
 
 | Slot | Module | Status |
 | --- | --- | --- |
-| 1 | Voice Modulator (bronze speaker) | Working |
+| 1 | Voice Modulator (bronze speaker) | Working (voice clone needs `npm run voice`) |
 | 2 | Face-Swap Lens (camera lens) | Working |
-| 3 | HeistAI assistant | Working (needs API key) |
+| 3 | HeistAI assistant | Working (voice needs `npm run heistai`, text needs API key) |
 | 4 | Alibi Generator | Working (needs API key) |
 | 5 | ID Forge | Working |
-| 6 | Empty slot | Undecided |
+| 6 | Watchtower | Prototype (bundled demo stations; optional browser GPS) |
+
 
 ### Voice Modulator
 
-Live mic processing with the Web Audio API, no server needed.
+Two modes, switched at the top of the panel.
+
+**Voice clone** turns your voice into someone else's with [RVC](https://github.com/daswer123/rvc-python). Go live, record a line, and it comes back in the voice you picked (pitch slider in semitones), ready to play or download as a `.wav`. It needs the local Python server in `voice-server/`:
+
+```bash
+npm run voice   # in a second terminal, next to npm run dev
+```
+
+Voices are `.pth` files in `voice-server/models/` (gitignored, add your own) and show up in the panel without code changes. Setup (Python 3.10, CPU or GPU torch) is in [voice-server/README.md](voice-server/README.md).
+
+**Quick disguise** is live mic processing with the Web Audio API, no server needed. The panel falls back to it automatically when the voice server isn't running.
 
 - Pitch shift runs in an AudioWorklet (`public/worklets/pitch-shifter.js`), a two-head delay-line shifter.
 - Robot is a 50 Hz ring modulator, Radio is a band-pass squeeze, Grit is a tanh waveshaper, Echo is a feedback delay.
@@ -69,11 +82,22 @@ Live face swap in the browser, no server and no uploads.
 
 ### HeistAI
 
-A chat with an in-character heist mastermind. Replies stream in as they're written. Starter prompts help you get going, and the conversation survives closing the panel. It keeps things movie-plot fictional.
+Talk to Alfred, the crew's AI handler, out loud. Tap the mic, ask your question, and he answers in his own cloned voice, one sentence at a time as each is ready. You can also type, and he still answers out loud. Voice needs the local Python server in `heistai-server/` (faster-whisper for speech to text, Claude for the reply, OmniVoice for Alfred's voice):
+
+```bash
+npm run heistai   # in a second terminal, next to npm run dev
+```
+
+Setup is in [heistai-server/README.md](heistai-server/README.md). Without that server the panel falls back to a streaming text chat with an in-character heist mastermind (needs the API key). Starter prompts help you get going, the conversation survives closing the panel, and it keeps things movie-plot fictional.
 
 ### Alibi Generator
 
 Describe the job, where you want to have been, and who vouches for you (or leave it all blank), pick a style, and get a case-file cover story: timeline, witnesses, receipts, weak spots, and the one line to say when asked. Uses structured output so the result always has the same shape. "Copy alibi" puts it on your clipboard as text.
+
+### Watchtower
+
+A proximity-radar prototype that plots bundled San Antonio reference stations relative to a demo or browser-provided location. The station list and response ranges are illustrative only; this does not provide live dispatch, officer, vehicle, or arrival-time tracking, and must not be used for emergency decisions.
+
 
 ## Code map
 
@@ -86,9 +110,13 @@ src/
   lib/spring.ts                damped spring used by the 3D animations
   modules/registry.ts          module list (names, taglines, ready flag)
   modules/VoiceModulatorModule.tsx   3D bronze speaker
+  modules/WatchtowerModule.tsx      3D radar prop for the sixth slot
   modules/PlaceholderModules.tsx     3D props for HeistAI (orb) and Alibi (notebook)
+  radar/radarEngine.ts               demo stations, bearings, distances and estimate model
   audio/voiceEngine.ts         Web Audio voice changer
+  audio/voiceClone.ts          browser calls to /api/voice (RVC server), WAV encoding
   ui/VoiceModulatorPanel.tsx   voice control panel
+  ui/WatchtowerPanel.tsx       proximity radar prototype
   ui/PanelShell.tsx            shared glass panel frame + form controls for every module
   ui/ShaderTitle.tsx           WebGL title effect
   ui/Dock.tsx                  bottom module toolbar
@@ -96,14 +124,22 @@ src/
   vision/faceSwapEngine.ts     face tracking + WebGL face warp
   modules/FaceSwapLensModule.tsx     3D camera lens
   ui/FaceSwapPanel.tsx         face swap panel
-  ui/HeistAIPanel.tsx          streaming chat panel
+  ui/HeistAIPanel.tsx          talk-to-Alfred panel (mic + text), text chat fallback
   ui/AlibiPanel.tsx            alibi form + case-file result
   ai/heistApi.ts               browser calls to /api/heistai and /api/alibi
+  ai/alfred.ts                 browser calls to /api/alfred (voice server), sentence playback queue
   idcard/                      ID Forge: card template, renderer, camera helpers, last-card store
   modules/FakeIdModule.tsx     3D crew ID on a card tray
   ui/FakeIdPanel.tsx           ID Forge panel (camera, countdown, fields, download)
 server/
   heistApi.ts                  Vite plugin: Claude endpoints (reads ANTHROPIC_API_KEY)
+voice-server/
+  server.py                    FastAPI + RVC voice clone, proxied by Vite at /api/voice
+  models/                      .pth voice models (gitignored)
+heistai-server/
+  server.py                    FastAPI: STT -> Claude -> TTS, proxied by Vite at /api/alfred
+  stt.py llm.py tts.py pipeline.py   Alfred's speech pipeline
+  voices/Alfred.wav            reference clip for Alfred's cloned voice
 ```
 
 ### Adding a module

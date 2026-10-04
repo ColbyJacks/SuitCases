@@ -7,6 +7,7 @@ import { FaceSwapPanel } from './ui/FaceSwapPanel'
 import { HeistAIPanel } from './ui/HeistAIPanel'
 import { AlibiPanel } from './ui/AlibiPanel'
 import { FakeIdPanel } from './ui/FakeIdPanel'
+import { WatchtowerPanel } from './ui/WatchtowerPanel'
 import { ShaderTitle } from './ui/ShaderTitle'
 import { Scramble } from './ui/Scramble'
 import { Dock, MODULE_ICONS } from './ui/Dock'
@@ -164,7 +165,7 @@ export default function App() {
             </span>
             <span className="flex flex-col">
               <span className="text-sm text-paper">{toast.name}</span>
-              <span className="text-xs text-mute">{toast.id === 'slot6' ? 'This slot is still empty' : 'Offline. Coming soon.'}</span>
+              <span className="text-xs text-mute">Offline. Coming soon.</span>
             </span>
           </motion.div>
         )}
@@ -176,6 +177,7 @@ export default function App() {
         {active === 'heistai' && <HeistAIPanel key="heistai" onClose={close} />}
         {active === 'alibi' && <AlibiPanel key="alibi" onClose={close} />}
         {active === 'fakeid' && <FakeIdPanel key="fakeid" onClose={close} />}
+        {active === 'watchtower' && <WatchtowerPanel key="watchtower" onClose={close} />}
       </AnimatePresence>
     </div>
   )

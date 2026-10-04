@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import clsx from 'clsx'
-import { ArrowUp, Bot, Briefcase, Landmark, RotateCcw, Siren, Square, Users, type LucideIcon } from 'lucide-react'
+import { ArrowUp, Bot, Briefcase, Landmark, Mic, RotateCcw, Siren, Square, Users, type LucideIcon } from 'lucide-react'
 import { streamHeistAI, type ChatMessage } from '../ai/heistApi'
-import { ErrorNote, PanelShell } from './PanelShell'
+import { alfredStatus, resetAlfred, Speaker, talkToAlfred } from '../ai/alfred'
+import { toWav } from '../audio/voiceClone'
+import { deviceError, ErrorNote, PanelShell } from './PanelShell'
 
 const STARTERS: { icon: LucideIcon; text: string }[] = [
   { icon: Landmark, text: 'Plan a museum heist for a crew of four' },
@@ -17,16 +19,25 @@ const GREETING: ChatMessage = {
   content: 'HeistAI online. Tell me the mark and I’ll draw up the plan. Or pick a starter below.',
 }
 
+const VOICE_GREETING: ChatMessage = {
+  role: 'assistant',
+  content: 'Alfred here, on the line. Hit the mic and talk to me, or type if you’d rather keep it quiet.',
+}
+
 // Kept at module level so the conversation survives closing and reopening the panel.
 let savedChat: ChatMessage[] = []
+let session = crypto.randomUUID()
 
-function Typing() {
+type Voice = 'checking' | 'loading' | 'online' | 'offline'
+type Phase = 'idle' | 'listening' | 'thinking' | 'speaking'
+
+function Typing({ dark }: { dark?: boolean }) {
   return (
     <span className="flex h-5 items-center gap-1" aria-label="HeistAI is typing">
       {[0, 1, 2].map((i) => (
         <motion.span
           key={i}
-          className="size-1.5 rounded-full bg-gold"
+          className={clsx('size-1.5 rounded-full', dark ? 'bg-ink' : 'bg-gold')}
           animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
           transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15, ease: 'easeInOut' }}
         />
@@ -57,7 +68,7 @@ function Bubble({ message }: { message: ChatMessage }) {
             : 'rounded-2xl rounded-tl-md border border-white/[0.06] bg-white/[0.035] text-paper/90',
         )}
       >
-        {message.content || <Typing />}
+        {message.content || <Typing dark={mine} />}
       </div>
     </motion.div>
   )
@@ -68,9 +79,14 @@ export function HeistAIPanel({ onClose }: { onClose: () => void }) {
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [voice, setVoice] = useState<Voice>('checking')
+  const [phase, setPhase] = useState<Phase>('idle')
   const abort = useRef<AbortController | null>(null)
   const log = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLTextAreaElement>(null)
+  const recorder = useRef<MediaRecorder | null>(null)
+  const speaker = useRef<Speaker | null>(null)
+  speaker.current ??= new Speaker()
 
   useEffect(() => {
     savedChat = messages
@@ -78,11 +94,120 @@ export function HeistAIPanel({ onClose }: { onClose: () => void }) {
     if (el) el.scrollTop = el.scrollHeight
   }, [messages, error])
 
-  useEffect(() => () => abort.current?.abort(), [])
+  useEffect(() => {
+    const s = speaker.current!
+    s.onChange = (speaking) => setPhase((p) => (speaking ? 'speaking' : p === 'speaking' ? 'idle' : p))
+    return () => {
+      abort.current?.abort()
+      s.stop()
+      recorder.current?.stream.getTracks().forEach((t) => t.stop())
+    }
+  }, [])
+
+  // Look for Alfred's voice server, and keep checking until it's up and its models are loaded.
+  useEffect(() => {
+    let stopped = false
+    let timer = 0
+    const check = async () => {
+      const { online, ready } = await alfredStatus()
+      if (stopped) return
+      setVoice(online ? (ready ? 'online' : 'loading') : 'offline')
+      if (!ready) timer = window.setTimeout(check, 4000)
+    }
+    void check()
+    return () => {
+      stopped = true
+      clearTimeout(timer)
+    }
+  }, [])
+
+  const voiceOn = voice === 'online'
+
+  const fail = (e: unknown, ctrl: AbortController) => {
+    if (ctrl.signal.aborted) return false
+    setError(e instanceof Error ? e.message : String(e))
+    // Drop the empty assistant bubble (and an unheard question) so the log stays clean.
+    setMessages((prev) => (prev[prev.length - 1]?.content ? prev : prev.slice(0, -2)))
+    return true
+  }
+
+  /** One spoken turn with Alfred: his sentences appear and play as they arrive. */
+  const talk = async (input: { audio: Blob } | { text: string }) => {
+    const heard = 'text' in input ? input.text : ''
+    setMessages((prev) => [...prev, { role: 'user', content: heard }, { role: 'assistant', content: '' }])
+    setDraft('')
+    setError(null)
+    setBusy(true)
+    setPhase('thinking')
+
+    const ctrl = new AbortController()
+    abort.current = ctrl
+    const patch = (fromEnd: number, update: (content: string) => string) =>
+      setMessages((prev) => {
+        const next = prev.slice()
+        const i = next.length - fromEnd
+        next[i] = { ...next[i], content: update(next[i].content) }
+        return next
+      })
+
+    try {
+      await talkToAlfred(
+        input,
+        session,
+        (e) => {
+          if (e.type === 'user') patch(2, () => e.text || '(silence)')
+          if (e.type === 'sentence') {
+            patch(1, (c) => (c ? `${c} ${e.text}` : e.text))
+            speaker.current!.enqueue(e.audio)
+          }
+        },
+        ctrl.signal,
+      )
+    } catch (e) {
+      if (fail(e, ctrl) && 'text' in input) setDraft(input.text)
+    } finally {
+      setBusy(false)
+      setPhase((p) => (p === 'thinking' ? (speaker.current!.speaking ? 'speaking' : 'idle') : p))
+    }
+  }
+
+  const toggleMic = async () => {
+    const rec = recorder.current
+    if (rec) {
+      rec.stop()
+      return
+    }
+    setError(null)
+    speaker.current!.stop()
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+      const chunks: Blob[] = []
+      const next = new MediaRecorder(stream)
+      next.ondataavailable = (e) => e.data.size && chunks.push(e.data)
+      next.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop())
+        recorder.current = null
+        setPhase('idle')
+        const blob = new Blob(chunks, { type: next.mimeType })
+        if (!blob.size) return
+        try {
+          await talk({ audio: await toWav(blob) })
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e))
+        }
+      }
+      next.start()
+      recorder.current = next
+      setPhase('listening')
+    } catch (e) {
+      setError(deviceError(e, 'microphone'))
+    }
+  }
 
   const send = async (text: string) => {
     const content = text.trim()
     if (!content || busy) return
+    if (voiceOn) return talk({ text: content })
     const history: ChatMessage[] = [...messages, { role: 'user', content }]
     setMessages([...history, { role: 'assistant', content: '' }])
     setDraft('')
@@ -104,25 +229,36 @@ export function HeistAIPanel({ onClose }: { onClose: () => void }) {
         ctrl.signal,
       )
     } catch (e) {
-      if (!ctrl.signal.aborted) {
-        setError(e instanceof Error ? e.message : String(e))
-        // Drop the empty assistant bubble and put the question back in the box.
-        setMessages((prev) => (prev[prev.length - 1]?.content ? prev : prev.slice(0, -2)))
-        setDraft(content)
-      }
+      // Put the question back in the box.
+      if (fail(e, ctrl)) setDraft(content)
     } finally {
       setBusy(false)
     }
   }
 
-  const stop = () => abort.current?.abort()
+  const stop = () => {
+    abort.current?.abort()
+    speaker.current!.stop()
+  }
 
   const reset = () => {
     stop()
+    resetAlfred(session)
+    session = crypto.randomUUID()
     setMessages([])
     setError(null)
     input.current?.focus()
   }
+
+  const working = busy || phase === 'speaking'
+  const status =
+    phase === 'listening'
+      ? { live: true, label: 'Listening', tone: 'red' as const }
+      : phase === 'speaking'
+        ? { live: true, label: 'Speaking', tone: 'gold' as const }
+        : busy
+          ? { live: true, label: voiceOn ? 'Thinking' : 'Plotting', tone: 'gold' as const }
+          : { live: false, label: voiceOn ? 'On the line' : 'Ready' }
 
   return (
     <PanelShell
@@ -132,7 +268,7 @@ export function HeistAIPanel({ onClose }: { onClose: () => void }) {
           Heist<em>AI</em>
         </>
       }
-      status={busy ? { live: true, label: 'Plotting', tone: 'gold' } : { live: false, label: 'Ready' }}
+      status={status}
       onClose={onClose}
       bodyRef={log}
       bodyClassName="gap-4"
@@ -149,7 +285,7 @@ export function HeistAIPanel({ onClose }: { onClose: () => void }) {
               ref={input}
               value={draft}
               rows={1}
-              placeholder="Ask the mastermind…"
+              placeholder={phase === 'listening' ? 'Listening… tap the mic again to send' : voiceOn ? 'Talk or type to Alfred…' : 'Ask the mastermind…'}
               aria-label="Message HeistAI"
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
@@ -162,7 +298,22 @@ export function HeistAIPanel({ onClose }: { onClose: () => void }) {
               className="max-h-36 min-h-9 flex-1 resize-none bg-transparent py-2 text-sm leading-5 text-paper outline-none [field-sizing:content] placeholder:text-mute/60 focus-visible:outline-none"
             />
             <AnimatePresence mode="popLayout" initial={false}>
-              {busy ? (
+              {phase === 'listening' ? (
+                <motion.button
+                  key="listening"
+                  type="button"
+                  onClick={toggleMic}
+                  aria-label="Stop recording and send"
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.6, opacity: 0 }}
+                  whileTap={{ scale: 0.92 }}
+                  className="relative flex size-9 shrink-0 items-center justify-center rounded-xl bg-laser text-white shadow-[0_6px_18px_-6px_rgba(255,61,74,0.8)]"
+                >
+                  <span className="absolute inset-0 animate-ping rounded-xl bg-laser/40" />
+                  <Mic className="relative size-4" strokeWidth={2.25} />
+                </motion.button>
+              ) : working ? (
                 <motion.button
                   key="stop"
                   type="button"
@@ -174,6 +325,20 @@ export function HeistAIPanel({ onClose }: { onClose: () => void }) {
                   className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-paper transition-colors hover:bg-white/10"
                 >
                   <Square className="size-3.5 fill-current" />
+                </motion.button>
+              ) : voiceOn && !draft.trim() ? (
+                <motion.button
+                  key="mic"
+                  type="button"
+                  onClick={toggleMic}
+                  aria-label="Talk to Alfred"
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.6, opacity: 0 }}
+                  whileTap={{ scale: 0.92 }}
+                  className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-[#f3d493] to-gold text-ink shadow-[0_6px_18px_-6px_rgba(227,181,99,0.8)] transition-[filter] hover:brightness-105"
+                >
+                  <Mic className="size-4" strokeWidth={2.25} />
                 </motion.button>
               ) : (
                 <motion.button
@@ -194,10 +359,24 @@ export function HeistAIPanel({ onClose }: { onClose: () => void }) {
           </div>
           <div className="flex h-6 items-center justify-between px-1 text-[11px] text-mute">
             <span>
-              <kbd className="font-mono text-paper/60">Enter</kbd> to send, <kbd className="font-mono text-paper/60">Shift+Enter</kbd> for a new line
+              {voiceOn ? (
+                <>
+                  Tap <Mic className="mb-px inline size-3 text-gold" /> to talk, or type and press <kbd className="font-mono text-paper/60">Enter</kbd>
+                </>
+              ) : voice === 'loading' ? (
+                'Alfred is warming up his voice…'
+              ) : voice === 'offline' ? (
+                <>
+                  Text only. Run <kbd className="font-mono text-paper/60">npm run heistai</kbd> to talk to Alfred
+                </>
+              ) : (
+                <>
+                  <kbd className="font-mono text-paper/60">Enter</kbd> to send, <kbd className="font-mono text-paper/60">Shift+Enter</kbd> for a new line
+                </>
+              )}
             </span>
             <AnimatePresence>
-              {messages.length > 0 && !busy && (
+              {messages.length > 0 && !working && phase !== 'listening' && (
                 <motion.button
                   type="button"
                   initial={{ opacity: 0, x: 6 }}
@@ -216,7 +395,7 @@ export function HeistAIPanel({ onClose }: { onClose: () => void }) {
       }
     >
       <div className="flex flex-col gap-4" aria-live="polite">
-        {[GREETING, ...messages].map((m, i) => (
+        {[voiceOn ? VOICE_GREETING : GREETING, ...messages].map((m, i) => (
           <Bubble key={i} message={m} />
         ))}
       </div>

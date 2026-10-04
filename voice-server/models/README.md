@@ -1,0 +1,1 @@
+Drop RVC voice models here: `Name.pth` (plus an optional `Name.index`), or a `Name/` folder holding a `.pth` and optional `.index`. Everything in this folder except this file is gitignored. See `../README.md`.
