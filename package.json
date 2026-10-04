@@ -6,6 +6,7 @@
   "scripts": {
     "predev": "node scripts/copy-mediapipe.mjs",
     "dev": "vite",
+    "voice": "node scripts/voice-server.mjs",
     "prebuild": "node scripts/copy-mediapipe.mjs",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
