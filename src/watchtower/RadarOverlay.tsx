@@ -12,7 +12,7 @@ export function RadarOverlay({ position, radiusMeters }: { position: Coordinate;
   const radius = Math.min(2500, Math.abs(center.y - north.y))
   return <>
     {[1 / 3, 2 / 3, 1].map(fraction => <Circle key={fraction} center={origin} radius={radiusMeters * fraction}
-      interactive={false} pathOptions={{ color: '#70e6b6', weight: 1, opacity: .35, fillOpacity: 0, dashArray: fraction === 1 ? '5 7' : undefined }} />)}
+      interactive={false} pathOptions={{ color: '#70e6b6', weight: 2, opacity: 1, fillOpacity: 0, dashArray: fraction === 1 ? '5 7' : undefined }} />)}
     <Pane name="watchtower-sweep" style={{ zIndex: 410, pointerEvents: 'none' }}>
       <div aria-hidden="true" className="wt-radar-sweep" style={{ width: radius * 2, height: radius * 2, left: center.x - radius, top: center.y - radius }} />
     </Pane>

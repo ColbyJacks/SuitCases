@@ -22,8 +22,8 @@
 .watchtower-map .leaflet-tooltip { color:#d7f7e7; background:#10271f; border:1px solid #6aecb450; font-size:12px; box-shadow:none; }
 .watchtower-map .leaflet-tooltip-top::before { border-top-color:#6aecb450; }
 .wt-marker { background:none; border:none; }
-.wt-pin { display:flex; justify-content:center; align-items:center; height:30px; width:30px; border-radius:50%; border:1px solid var(--pin-color); background:#0c241ee8; color:var(--pin-color); font-family:var(--font-mono); font-size:13px; font-weight:600; box-shadow:0 0 12px #0009; }
-.wt-pin.is-selected { outline:3px solid #efc779; outline-offset:3px; }
+.wt-pin { display:flex; justify-content:center; align-items:center; height:var(--wt-pin-size); width:var(--wt-pin-size); border:0; border-radius:50%; background:radial-gradient(circle,#0c241e 0 3px,var(--pin-color) 3.5px 4.5px,transparent 5px); color:var(--pin-color); font-family:var(--font-mono); font-size:var(--wt-pin-font); font-weight:700; text-shadow:0 1px 3px #000,0 0 5px #000; transition:height .15s ease,width .15s ease,font-size .15s ease; }
+.wt-pin.is-selected { background:radial-gradient(circle,#0c241e 0 3px,#efc779 3.5px 4.5px,transparent 5px),radial-gradient(circle,#efc77955 0 7px,transparent 8px); }
 .wt-pin.is-stale { opacity:.55; border-style:dashed; }
 .wt-radar-sweep { position:absolute; border-radius:50%; background:conic-gradient(from 0deg,transparent 0deg 290deg,#67edb400 291deg,#67edb420 355deg,#bbffdf44 359deg,transparent 360deg); animation:wt-sweep 8s linear infinite; }
 @keyframes wt-sweep { to { transform:rotate(360deg); } }
