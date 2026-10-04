@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
 import type { Coordinate } from '../radar/radarEngine'
-import { errorMessage, getCapabilities, getLayer, getWeather, JAVA_API_BASE } from './api'
+import { errorMessage, getCapabilities, getLayer, JAVA_API_BASE, WEATHER_API_BASE } from './api'
 import { sampleLayer } from './demoData'
-import { LAYERS, SAMPLE_LAYERS, type Capabilities, type LayerId, type LayerState, type MarkerLayer, type WeatherState } from './types'
+import { LAYERS, SAMPLE_LAYERS, type Capabilities, type LayerId, type LayerState, type MarkerLayer } from './types'
+import { useWeather } from './useWeather'
 
-export function useLayers(position: Coordinate, enabled: Record<LayerId, boolean>, samples: boolean, radiusMeters: number, refresh: number) {
+export function useLayers(position: Coordinate, enabled: Record<LayerId, boolean>, samples: boolean, radiusMeters: number, refresh: number, weatherRefresh: number) {
   const [states, setStates] = useState<Record<LayerId, LayerState>>(() => Object.fromEntries(LAYERS.map(layer => [layer.id, { status: 'idle' }])) as Record<LayerId, LayerState>)
-  const [weather, setWeather] = useState<WeatherState>({ status: 'idle' })
   const [capabilities, setCapabilities] = useState<Capabilities>()
   const [connection, setConnection] = useState(JAVA_API_BASE ? 'Connecting' : 'Public sources')
+  const weatherPermitted = WEATHER_API_BASE !== JAVA_API_BASE || !capabilities || capabilities.layers.includes('weather')
+  const weather = useWeather(position, enabled.weather, refresh + weatherRefresh, weatherPermitted)
 
   useEffect(() => {
     if (!JAVA_API_BASE) return
@@ -47,21 +49,6 @@ export function useLayers(position: Coordinate, enabled: Record<LayerId, boolean
     return () => abort.abort()
   }, [enabledKey, samples, position.latitude, position.longitude, radiusMeters, refresh, capabilities])
 
-  useEffect(() => {
-    if (!enabled.weather) { setWeather({ status: 'idle' }); return }
-    if (JAVA_API_BASE && capabilities && !capabilities.layers.includes('weather')) {
-      setWeather({ status: 'unavailable', error: 'Weather is not connected yet.' }); return
-    }
-    const abort = new AbortController()
-    setWeather({ status: 'loading' })
-    getWeather(position, abort.signal).then(data => {
-      if (!abort.signal.aborted) setWeather({ status: 'ready', data })
-    }).catch(error => {
-      if (!abort.signal.aborted) setWeather({ status: 'unavailable', error: errorMessage(error) })
-    })
-    return () => abort.abort()
-  }, [enabled.weather, position.latitude, position.longitude, refresh, capabilities])
-
   // Age is distinct from request success. A source may provide an old position or observation.
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -69,12 +56,13 @@ export function useLayers(position: Coordinate, enabled: Record<LayerId, boolean
         state.status === 'ready' && state.data && !state.data.markers.every(marker => marker.simulated)
           && Date.now() - Date.parse(state.data.fetchedAt) > 5 * 60_000 ? { ...state, status: 'stale' } : state,
       ])) as Record<LayerId, LayerState>)
-      setWeather(previous => previous.status === 'ready' && previous.data && Date.now() - Date.parse(previous.data.fetchedAt) > 15 * 60_000
-        ? { ...previous, status: 'stale' } : previous)
     }, 30_000)
     return () => window.clearInterval(timer)
   }, [])
 
   const layerStates: Record<LayerId, LayerState> = { ...states, weather: { status: weather.status, error: weather.error } }
-  return { states: layerStates, weather, connection }
+  const weatherConnection = weather.status === 'loading' ? 'Weather connecting'
+    : weather.status === 'ready' ? 'Java weather connected'
+      : weather.status === 'stale' ? 'Weather needs refresh' : 'Weather unavailable'
+  return { states: layerStates, weather, connection: JAVA_API_BASE || !enabled.weather ? connection : weatherConnection }
 }

@@ -9,29 +9,12 @@ import {
   FlipHorizontal2,
   ImagePlus,
   Loader2,
-  Paintbrush,
   ScanFace,
   ShieldCheck,
-  Spline,
   X,
 } from 'lucide-react'
 import { DEFAULT_FACE_PARAMS, faceSwapEngine, type FaceSwapParams } from '../vision/faceSwapEngine'
-import { Button, ErrorNote, Note, PanelShell, Section, Slider, Toggle, deviceError } from './PanelShell'
-
-const HAIR_SWATCHES = [
-  { name: 'Platinum', color: '#e8dcc0' },
-  { name: 'Honey', color: '#d9a55b' },
-  { name: 'Copper', color: '#c2582b' },
-  { name: 'Cherry', color: '#b0213a' },
-  { name: 'Rose', color: '#e88aa8' },
-  { name: 'Violet', color: '#7b4fd6' },
-  { name: 'Electric', color: '#2f7bff' },
-  { name: 'Mint', color: '#4fd1a5' },
-]
-
-function pct(v: number) {
-  return `${Math.round(v * 100)}%`
-}
+import { Button, ErrorNote, Note, PanelShell, Section, Toggle, deviceError } from './PanelShell'
 
 function Chip({ tone, children }: { tone: 'green' | 'gold' | 'mute' | 'red'; children: React.ReactNode }) {
   return (

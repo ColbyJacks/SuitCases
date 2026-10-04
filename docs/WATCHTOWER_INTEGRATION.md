@@ -3,7 +3,8 @@
 Watchtower now uses a single Leaflet map, optional geographic radar rings and
 decorative sweep, destination search, route geometry, selectable markers, and
 independent layer states. The other suitcase modules keep their existing backend.
-This change does not implement or migrate the Java backend.
+The weather slice now has an implemented Java backend in `backend/`; the remaining
+Java contracts below are prepared for later migration.
 
 ## Provider decisions
 
@@ -48,7 +49,8 @@ Source documentation:
 By default the crew/assets/objectives/traffic layers use explicitly labeled,
 fixed fictional San Antonio markers. They never represent live tracking or road
 closures. Turn off **Sample markers** to see which layers require a service.
-Places and weather request public data only when their layers are enabled.
+Places request public data only when enabled. Weather requests the Java service only
+when enabled; Java requests current conditions from Open-Meteo.
 Changing the user's GPS position does not relocate the fictional scenario.
 GPS is a one-time, permission-based lookup and is not shared with teammates.
 
@@ -58,6 +60,8 @@ Radar/layer changes preserve the destination and current route. Selecting a
 marker does not also drop a destination. Sample traffic does not modify routes.
 Map tile failures, empty search/place results and provider errors have visible
 states. Layer responses become stale after five minutes; weather after fifteen.
+Weather refreshes every five minutes while the panel and layer are visible, retries
+on demand, and retains the same location's last readings with a stale label on failures.
 Position markers with observation timestamps older than two minutes are muted.
 
 The public adapters send the selected location/query to their respective
@@ -65,6 +69,15 @@ providers. No backend accounts, live crew sharing, voice rooms or hardware
 connections are implied by enabling sample markers.
 
 ## Java contract
+
+### Implemented weather slice
+
+See [backend/README.md](../backend/README.md) for startup, configuration and deployment.
+The service returns the existing `WeatherData` shape, nullable readings and UTC times.
+`observedAt` is the model-valid time; `fetchedAt` records retrieval. The panel decodes WMO
+conditions and reports failures without falling back to direct provider requests.
+
+### Prepared contracts for remaining features
 
 Set `VITE_WATCHTOWER_API_URL` to the Java service base, e.g.
 `http://localhost:8080/api/watchtower`. All JSON adapters then use that service;
@@ -119,7 +132,7 @@ and `trafficAware`. `WeatherData` requires nullable numbers `temperatureC`,
 
 ## Later slices
 
-1. Java authentication, database, controllers and provider caching.
+1. Java authentication, database and controllers for the remaining features (weather is implemented).
 2. Actual operation selection, saved objectives and opt-in position sharing.
 3. Authenticated STOMP updates (current layers use request/refresh).
 4. TomTom traffic, NWS alert polygons and a traffic-aware routing adapter.
@@ -140,5 +153,9 @@ geographic helpers remain available for distances and bearings.
   toggles preserving routes, empty places, provider failure, denied GPS, and
   cancellation preventing old routes from reappearing.
 - A mock Java service verifies capabilities, operation-scoped layer requests,
-  normalized geocoding/weather and route POST payloads. It is contract validation,
-  not verification of an implemented Java backend.
+  normalized geocoding/weather and route POST payloads. These earlier checks cover
+  prepared contracts; the implemented weather service has its own isolated backend tests.
+
+Weather checks cover mapping, validation, caching, recovery, timeouts and CORS in Java;
+frontend validation and build; and live desktop/mobile rendering, retry, GPS changes,
+request cancellation, automatic refresh and stopping requests when the layer is hidden.

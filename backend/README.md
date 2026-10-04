@@ -1,26 +1,46 @@
-# Face swap server
+# Watchtower weather
 
-FastAPI WebSocket server running InsightFace (buffalo_l detection + inswapper_128) on the GPU.
-The browser sends webcam frames to `/ws` and gets swapped frames back. Vite proxies
-`/api/faceswap/ws` to port 8001, so it also works over https / Tailscale.
+Java 21 / Spring Boot, using your Spring Initializr starter. Install JDK 21 and set
+`JAVA_HOME`; the Maven wrapper downloads dependencies on its first run. No API key
+or database is needed for the noncommercial [Open-Meteo](https://open-meteo.com/en/docs) prototype.
 
-## Setup (once)
+From the repository root, run these in separate terminals:
 
-Python 3.10 to 3.12, NVIDIA GPU. From `backend/`:
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate            # macOS/Linux: source .venv/bin/activate
-pip install insightface "onnxruntime-gpu==1.22.0" opencv-python-headless numpy fastapi "uvicorn[standard]" nvidia-cudnn-cu12 nvidia-cublas-cu12 nvidia-cuda-nvrtc-cu12 nvidia-cuda-runtime-cu12 nvidia-cufft-cu12 nvidia-curand-cu12
+```sh
+npm run weather
+npm run dev
 ```
 
-onnxruntime-gpu is pinned to 1.22 because newer builds need CUDA 13 and these pip packages are CUDA 12.
+Open Watchtower and enable **Weather**. Vite forwards `/api/watchtower/weather` to
+Java on port 8080. Leave `VITE_WATCHTOWER_API_URL` blank when migrating only weather.
+Direct startup from `backend/`: `./mvnw spring-boot:run`, or
+`.\mvnw.cmd spring-boot:run` in Windows PowerShell.
 
-Put `inswapper_128.onnx` in this folder (gitignored, ~550 MB, non-commercial license).
-`buffalo_l` downloads itself into `~/.insightface` on first start.
+`GET /api/watchtower/weather?lat=29.4241&lon=-98.4936` returns temperature in Celsius,
+wind in km/h, precipitation in mm, WMO condition code, UTC `observedAt`/`fetchedAt`
+timestamps and `source`. Measurements can be null. `observedAt` is the model-valid
+time. The Java service requests current conditions from Open-Meteo for each request.
 
-## Run
+The panel refreshes every five minutes while visible, preserves the same location's
+last readings on failures, and offers a retry button. Invalid coordinates return 400;
+provider errors return 502 and rate limits return 503. Each refresh requests current
+conditions directly from Open-Meteo.
 
-```bash
-npm run faceswap   # from the repo root, wait for "Models Loaded!"
-```
+| Setting | Default / use |
+| --- | --- |
+| `PORT` | `8080`, Java port |
+| `WEATHER_PROVIDER_URL` | Open-Meteo forecast endpoint |
+| `WATCHTOWER_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` |
+| `WATCHTOWER_SERVER_URL` | Vite proxy target: `http://127.0.0.1:8080` |
+| `VITE_WATCHTOWER_WEATHER_API_URL` | Optional hosted API base, including `/api/watchtower` |
+
+For deployment, run `./mvnw verify` in `backend/`, then
+`java -jar target/watchtower-backend-0.0.1-SNAPSHOT.jar`. Static frontend hosts need a
+reverse proxy for the endpoint or a weather API base set before building, with the
+matching CORS origin. Vite's development proxy is not included in the static build.
+
+Checks: `./mvnw verify` for backend tests; `npm run test:weather` (Node 22.6+) and
+`npm run build` from the root for frontend checks. This implements current conditions;
+forecast charts, imagery and severe-weather alerts remain future integrations.
+
+Face swap server (Python, GPU) docs: see [FACESWAP.md](FACESWAP.md).

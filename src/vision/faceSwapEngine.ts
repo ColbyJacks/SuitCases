@@ -1,5 +1,3 @@
-import { FilesetResolver } from '@mediapipe/tasks-vision'
-
 export type FaceSwapParams = {
   opacity: number
   colorMatch: number
