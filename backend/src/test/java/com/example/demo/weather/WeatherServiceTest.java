@@ -6,14 +6,6 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import java.io.IOException;
-import java.net.SocketTimeoutException;
-import java.net.InetSocketAddress;
-import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,8 +30,7 @@ class WeatherServiceTest {
     void setup() {
         var builder = RestClient.builder().baseUrl("https://weather.test/forecast");
         server = MockRestServiceServer.bindTo(builder).build();
-        service = new WeatherService(builder.build(), Duration.ofMinutes(5),
-                Clock.fixed(Instant.parse("2026-10-04T06:01:00Z"), ZoneOffset.UTC));
+        service = new WeatherService(builder.build());
     }
 
     @AfterEach
@@ -48,7 +39,7 @@ class WeatherServiceTest {
     }
 
     @Test
-    void mapsProviderUnitsAndUtcTimesAndCachesOriginalFetch() {
+    void mapsProviderUnitsAndUtcTimes() {
         server.expect(queryParam("latitude", "29.4241"))
                 .andExpect(queryParam("longitude", "-98.4936"))
                 .andExpect(queryParam("current", "temperature_2m,precipitation,weather_code,wind_speed_10m"))
@@ -58,17 +49,13 @@ class WeatherServiceTest {
                 .andExpect(queryParam("timezone", "UTC"))
                 .andRespond(withSuccess(CONDITIONS, MediaType.APPLICATION_JSON));
         var first = service.getWeather(29.4241, -98.4936);
-        assertThat(first).isEqualTo(new WeatherResponse(22.4, 14.6, 0.0, 2,
-                "2026-10-04T06:00:00Z", "2026-10-04T06:01:00Z", "Open-Meteo"));
-        assertThat(service.getWeather(29.4241, -98.4936)).isSameAs(first);
-    }
-
-    @Test
-    void cachesDifferentCoordinatesSeparately() {
-        server.expect(queryParam("latitude", "29.4241")).andRespond(withSuccess(CONDITIONS, MediaType.APPLICATION_JSON));
-        server.expect(queryParam("latitude", "30.2672")).andRespond(withSuccess(CONDITIONS, MediaType.APPLICATION_JSON));
-        service.getWeather(29.4241, -98.4936);
-        service.getWeather(30.2672, -97.7431);
+        assertThat(first.temperatureC()).isEqualTo(22.4);
+        assertThat(first.windKmh()).isEqualTo(14.6);
+        assertThat(first.precipitationMm()).isEqualTo(0.0);
+        assertThat(first.weatherCode()).isEqualTo(2);
+        assertThat(first.observedAt()).isEqualTo("2026-10-04T06:00:00Z");
+        assertThat(first.fetchedAt()).isNotBlank();
+        assertThat(first.source()).isEqualTo("Open-Meteo");
     }
 
     @Test
@@ -96,7 +83,7 @@ class WeatherServiceTest {
     }
 
     @Test
-    void providerFailureIsNotCachedAndNextRequestCanRecover() {
+    void providerFailureDoesNotPreventNextRequestFromRecovering() {
         server.expect(queryParam("timezone", "UTC")).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
         server.expect(queryParam("timezone", "UTC")).andRespond(withSuccess(CONDITIONS, MediaType.APPLICATION_JSON));
         assertProviderStatus(HttpStatus.BAD_GATEWAY);
@@ -109,41 +96,9 @@ class WeatherServiceTest {
         assertProviderStatus(HttpStatus.SERVICE_UNAVAILABLE);
     }
 
-    @Test
-    void distinguishesTimeoutFromOtherConnectionFailures() {
-        server.expect(queryParam("timezone", "UTC")).andRespond(request -> { throw new SocketTimeoutException("test timeout"); });
-        server.expect(queryParam("timezone", "UTC")).andRespond(request -> { throw new IOException("test connection failure"); });
-        assertProviderStatus(HttpStatus.GATEWAY_TIMEOUT);
-        assertProviderStatus(HttpStatus.BAD_GATEWAY);
-    }
-
     private void assertProviderStatus(HttpStatus status) {
         assertThatThrownBy(() -> service.getWeather(29.4241, -98.4936))
                 .isInstanceOfSatisfying(ResponseStatusException.class, error -> assertThat(error.getStatusCode()).isEqualTo(status));
     }
 
-    @Test
-    void enforcesConfiguredTimeoutWithRealHttpClient() throws Exception {
-        var provider = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        provider.createContext("/forecast", exchange -> {
-            try {
-                Thread.sleep(1000);
-                byte[] body = CONDITIONS.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().set("Content-Type", "application/json");
-                exchange.sendResponseHeaders(200, body.length);
-                exchange.getResponseBody().write(body);
-            } catch (InterruptedException error) {
-                Thread.currentThread().interrupt();
-            } finally { exchange.close(); }
-        });
-        provider.start();
-        try {
-            var client = WeatherService.createClient("http://127.0.0.1:" + provider.getAddress().getPort() + "/forecast",
-                    Duration.ofMillis(100));
-            var realService = new WeatherService(client, Duration.ofMinutes(5), Clock.systemUTC());
-            assertThatThrownBy(() -> realService.getWeather(29.4241, -98.4936))
-                    .isInstanceOfSatisfying(ResponseStatusException.class,
-                            error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT));
-        } finally { provider.stop(0); }
-    }
 }

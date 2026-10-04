@@ -19,18 +19,17 @@ Direct startup from `backend/`: `./mvnw spring-boot:run`, or
 `GET /api/watchtower/weather?lat=29.4241&lon=-98.4936` returns temperature in Celsius,
 wind in km/h, precipitation in mm, WMO condition code, UTC `observedAt`/`fetchedAt`
 timestamps and `source`. Measurements can be null. `observedAt` is the model-valid
-time. Successful results are cached per coordinate for five minutes (500 entries);
-cache hits retain the original fetch time. Failures are not cached.
+time. The Java service requests current conditions from Open-Meteo for each request.
 
 The panel refreshes every five minutes while visible, preserves the same location's
-last readings on failures, and offers a retry button. Invalid coordinates return 400,
-provider errors 502, rate limits 503 and timeouts 504. Timeouts: 3s connect, 8s response.
+last readings on failures, and offers a retry button. Invalid coordinates return 400;
+provider errors return 502 and rate limits return 503. Each refresh requests current
+conditions directly from Open-Meteo.
 
 | Setting | Default / use |
 | --- | --- |
 | `PORT` | `8080`, Java port |
 | `WEATHER_PROVIDER_URL` | Open-Meteo forecast endpoint |
-| `WEATHER_CACHE_TTL` | `5m` |
 | `WATCHTOWER_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` |
 | `WATCHTOWER_SERVER_URL` | Vite proxy target: `http://127.0.0.1:8080` |
 | `VITE_WATCHTOWER_WEATHER_API_URL` | Optional hosted API base, including `/api/watchtower` |

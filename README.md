@@ -141,7 +141,7 @@ src/
   modules/FakeIdModule.tsx     3D crew ID on a card tray
   ui/FakeIdPanel.tsx           ID Forge panel (camera, countdown, fields, download)
 backend/
-  src/main/java/com/example/demo/weather/   Java weather controller, provider adapter and cache
+  src/main/java/com/example/demo/weather/   Java weather endpoint and Open-Meteo adapter
   src/main/resources/application.properties weather service configuration
 server/
   heistApi.ts                  Vite plugin: Claude endpoints (reads ANTHROPIC_API_KEY)

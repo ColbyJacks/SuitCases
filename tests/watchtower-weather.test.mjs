@@ -29,7 +29,7 @@ test('condition labels distinguish clear weather, showers, hail and unknown code
   assert.equal(weatherCondition(999), 'Condition unavailable')
 })
 
-test('freshness uses original backend fetch time rather than condition time or cache-hit time', () => {
+test('freshness uses the backend fetch time rather than the condition time', () => {
   const fetched = Date.parse(conditions.fetchedAt)
   assert.equal(weatherIsStale(conditions, fetched + WEATHER_STALE_MS - 1), false)
   assert.equal(weatherIsStale(conditions, fetched + WEATHER_STALE_MS + 1), true)

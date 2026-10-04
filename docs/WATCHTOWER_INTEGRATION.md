@@ -50,7 +50,7 @@ By default the crew/assets/objectives/traffic layers use explicitly labeled,
 fixed fictional San Antonio markers. They never represent live tracking or road
 closures. Turn off **Sample markers** to see which layers require a service.
 Places request public data only when enabled. Weather requests the Java service only
-when enabled; Java calls Open-Meteo and caches successful conditions for five minutes.
+when enabled; Java requests current conditions from Open-Meteo.
 Changing the user's GPS position does not relocate the fictional scenario.
 GPS is a one-time, permission-based lookup and is not shared with teammates.
 
